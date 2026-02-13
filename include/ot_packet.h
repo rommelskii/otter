@@ -7,17 +7,6 @@
 
 #define OT_PKT_TERMINATOR 0xFF
 
-typedef enum 
-{
-  TREQ,
-  TACK,
-  TINV,
-  TREN,
-  CPULL,
-  CPUSH,
-  CINV
-} ot_cli_state;
-
 #pragma pack(push, 1)
 typedef struct ot_pkt_header
 {
