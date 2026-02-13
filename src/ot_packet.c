@@ -15,13 +15,13 @@ static ssize_t ot_pkt_deserialize_unpack_payload(ot_payload* head, uint8_t* buf,
 /**
   * Public implementations
   */
-ot_pkt_header ot_pkt_header_create(uint32_t srv_ip, uint32_t cli_ip, uint8_t* src_mac, uint8_t* cli_mac, uint64_t exp_time, uint64_t renew_time)
+ot_pkt_header ot_pkt_header_create(uint32_t srv_ip, uint32_t cli_ip, uint8_t* srv_mac, uint8_t* cli_mac, uint64_t exp_time, uint64_t renew_time)
 {
   ot_pkt_header res;
   
   res.srv_ip = srv_ip;
   res.cli_ip = cli_ip;
-  memcpy(res.src_mac, src_mac, 6);
+  memcpy(res.srv_mac, srv_mac, 6);
   memcpy(res.cli_mac, cli_mac, 6);
   res.exp_time = exp_time;
   res.renew_time = renew_time;
@@ -37,7 +37,7 @@ ot_pkt* ot_pkt_create()
   return res;
 }
 
-ot_payload* ot_payload_create(ot_pkt_type_t t, void* v, size_t vl)
+ot_payload* ot_payload_create(ot_pkt_type_t t, void* v, uint8_t vl)
 {
   ot_payload* res = malloc(sizeof(ot_payload));
   if (res == NULL) return NULL;
@@ -81,9 +81,9 @@ typedef struct ot_pkt_header
 typedef struct ot_payload
 {
   ot_pkt_type_t               type; 
-  void*                     value;
-  uint8_t                    vlen;
-  struct ot_payload*    next;
+  void*                       value;
+  uint8_t                     vlen;
+  struct ot_payload*          next;
 } ot_payload;
  */
 
@@ -93,30 +93,82 @@ ssize_t ot_pkt_serialize(struct ot_pkt* pkt, uint8_t* buf, size_t buflen)
   
   ssize_t bytes_serialized = 0;
 
-  if ( (bytes_serialized += ot_pkt_serialize_pack_header(ot_pkt->header, buf, buflen)) < 0 ) return -1;
-  if ( (bytes_serialized += ot_pkt_serialize_pack_payload(ot_pkt->payload, buf, buflen)) < 0 ) return -1;
+  if ( (bytes_serialized += ot_pkt_serialize_pack_header(pkt->header, buf, buflen)) < 0 ) 
+  {
+    fprintf(stderr, "pkt serialization failed: cannot serialize header\n");
+    return -1;
+  }
+  if ( (bytes_serialized += ot_pkt_serialize_pack_payload(pkt->payload, buf, buflen)) < 0 ) return -1;
+  {
+    fprintf(stderr, "pkt serialization failed: cannot serialize payload\n");
+    return -1;
+  }
 
   return bytes_serialized;
 }
 
 ssize_t ot_pkt_deserialize(struct ot_pkt* pkt, uint8_t* buf, size_t buflen) 
 {
+  if (pkt == NULL || buf == NULL || buflen == 0) return -1;
   
-  return -1;
+  ssize_t bytes_deserialized = 0;
+
+  if ( (bytes_deserialized += ot_pkt_deserialize_unpack_header(&(pkt->header), buf, buflen)) < 0 ) 
+  {
+    fprintf(stderr, "pkt deserialization failed: cannot deserialize header\n");
+    return -1;
+  }
+  if ( (bytes_deserialized += ot_pkt_deserialize_unpack_payload(pkt->payload, buf, buflen)) < 0 ) return -1;
+  {
+    fprintf(stderr, "pkt deserialization failed: cannot deserialize payload\n");
+    return -1;
+  }
+
+  return bytes_deserialized;
 }
 
 void ot_pkt_destroy(ot_pkt** o)
 {
+  ot_pkt* pkt = *o;
+
+  while (pkt->payload != NULL)
+  {
+    ot_payload* tmp = pkt->payload;
+    pkt->payload = pkt->payload->next;
+    free(tmp->value);
+    free(tmp);
+  }
+
+  free(*o);
+  *o = NULL;
+
   return;
 }
 
 void macstr_to_bytes(const char* macstr, uint8_t* macbytes) 
 {
+  // Use an int array to avoid pointer-size issues with %x in sscanf
+  unsigned int bytes[6];
+
+  if (sscanf(macstr, "%02x:%02x:%02x:%02x:%02x:%02x", 
+             &bytes[0], &bytes[1], &bytes[2], 
+             &bytes[3], &bytes[4], &bytes[5]) == 6) 
+  {
+    for (int i = 0; i < 6; i++) {
+      macbytes[i] = (uint8_t)bytes[i];
+    }
+  }
+
   return;
 }
 
-void bytes_to_macstr(uint8_t* macbytes, const char* macstr) 
+void bytes_to_macstr(uint8_t* macbytes, char* macstr) 
 {
+  // %02X ensures two-digit uppercase hex with leading zeros
+  sprintf(macstr, "%02x:%02x:%02x:%02x:%02x:%02x", 
+          macbytes[0], macbytes[1], macbytes[2], 
+          macbytes[3], macbytes[4], macbytes[5]);
+
   return;
 }
 
@@ -145,11 +197,11 @@ static ssize_t ot_pkt_serialize_pack_payload(ot_payload* head, uint8_t* buf, siz
   for(; oti != NULL; oti=oti->next) 
   {
     // Check if we can still serialize within buffer bounds
-    if (offset + sizeof(oti->type) + oti->vlen >= buflen) return -1; 
+    if (offset + 1 + oti->vlen >= buflen) return -1; 
     
     //Serialize type
     memcpy(&buf[offset], &(oti->type), sizeof(oti->type));
-    offset += sizeof(oti->type); //<< advance to first byte of vlen
+    offset++; //<< advance to first byte of vlen
 
     //Serialize value length
     buf[offset] = oti->vlen;
@@ -186,25 +238,26 @@ static ssize_t ot_pkt_deserialize_unpack_payload(ot_payload* head, uint8_t* buf,
   while (offset < buflen)
   {
     if (buf[offset] == 0xFF) break;                                   //<< stop iterating if we find the terminator (type=0xFF)
-    if (offset + sizeof(oti->type) + oti->vlen >= buflen) return -1;  //<< if out of bounds, immediately return -1 (FREE THE PAYLOAD FROM CALLER!!)
+    if (offset + 1 >= buflen) return -1;  //<< if out of bounds, immediately return -1 (FREE THE PAYLOAD FROM CALLER!!)
 
     // Extract type
-    ot_type_t t;
-    memcpy(&t, &buf[offset], sizeof(ot_type_t));
-    offset += sizeof(ot_type_t); //<< point to first byte of vlen
+    ot_pkt_type_t t;
+    t = buf[offset];
+    offset++; //<< point to first byte of vlen
 
     // Extract value length
-    size_t vl;
+    uint8_t vl;
     vl = buf[offset];
+    if (offset + vl >= buflen) return -1;
     offset++; //<< point to first byte of value
 
     // Allocate memory for value
-    void* v = malloc(oti->vlen);
+    void* v = malloc(vl);
     if (v == NULL) return -1; //<< return to caller if out of memory (free the payload!!);
     
     // Extract the value from buffer
-    memcpy(v, &buf[offset], oti->vlen);
-    offset += oti->vlen; //<< point to next value type
+    memcpy(v, &buf[offset], vl);
+    offset += vl; //<< point to next value type
 
     if (ot_payload_append(head, ot_payload_create(t,v,vl)) == NULL) return -1; //<< append; exit if we cant do so
   }
