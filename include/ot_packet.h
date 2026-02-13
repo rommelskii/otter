@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#define OT_PKT_TERMINATOR 0xFF
+
 typedef enum 
 {
   TREQ,
@@ -32,9 +34,9 @@ typedef struct ot_pkt_header
 typedef struct ot_payload
 {
   ot_pkt_type_t               type; 
-  void*                     value;
-  size_t                    vlen;
-  struct ot_payload*    next;
+  void*                       value;
+  uint8_t                     vlen;
+  struct ot_payload*          next;
 } ot_payload;
 
 typedef struct ot_pkt 
@@ -50,16 +52,16 @@ ot_pkt_header ot_pkt_header_create(uint32_t srv_ip, uint32_t cli_ip, uint8_t* sr
 ot_pkt* ot_pkt_create();
 
 // Allocates memory for a payload node and sets its fields
-ot_payload* ot_payload_create(ot_pkt_type_t t, void* v, size_t vl);
+ot_payload* ot_payload_create(ot_pkt_type_t t, void* v, uint8_t vl);
 
 // Appends a payload node to the end of a payload list
-ot_pkt* ot_payload_append(ot_payload* head, ot_payload* add);
+ot_payload* ot_payload_append(ot_payload* head, ot_payload* add);
 
 // Serializes an ot_pkt structure to a byte buffer and returns bytes serialized
-ssize_t ot_pkt_serialize(struct ot_pkt* pkt, uint8_t* buf);
+ssize_t ot_pkt_serialize(struct ot_pkt* pkt, uint8_t* buf, size_t buflen);
 
 // Deserializes/unpacks an ot_pkt structure from a byte buffer and returns bytes deserialized
-ssize_t ot_pkt_deserialize(struct ot_pkt* pkt, uint8_t* buf);
+ssize_t ot_pkt_deserialize(struct ot_pkt* pkt, uint8_t* buf, size_t buflen);
 
 // Frees an Otter packet to memory 
 void ot_pkt_destroy(ot_pkt** o);
@@ -69,14 +71,5 @@ void macstr_to_bytes(const char* macstr, uint8_t* macbytes);
 
 // Converts a MAC byte buffer to a string
 void bytes_to_macstr(uint8_t* macbytes, const char* macstr);
-
-/*
-* STATIC STUFF BELOW
-* PUT THEM TO IMPLEMENTATION
-*/
-
-// Returns the tail of the payload linked list
-static ot_pkt* ot_payload_next(ot_pkt* o);
-
 
 #endif //OT_PACKET_H
