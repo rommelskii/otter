@@ -16,7 +16,7 @@ typedef enum
   CPULL,
   CPUSH,
   CINV
-} ot_pkt_type_t;
+} ot_cli_state;
 
 #pragma pack(push, 1)
 typedef struct ot_pkt_header
@@ -33,7 +33,7 @@ typedef struct ot_pkt_header
 // Singly-linked list for payload entries in an Otter packet
 typedef struct ot_payload
 {
-  ot_pkt_type_t               type; 
+  uint8_t                     type; 
   void*                       value;
   uint8_t                     vlen;
   struct ot_payload*          next;
@@ -52,7 +52,7 @@ ot_pkt_header ot_pkt_header_create(uint32_t srv_ip, uint32_t cli_ip, uint8_t* sr
 ot_pkt* ot_pkt_create();
 
 // Allocates memory for a payload node and sets its fields
-ot_payload* ot_payload_create(ot_pkt_type_t t, void* v, uint8_t vl);
+ot_payload* ot_payload_create(uint8_t t, void* v, uint8_t vl);
 
 // Appends a payload node to the end of a payload list
 ot_payload* ot_payload_append(ot_payload* head, ot_payload* add);

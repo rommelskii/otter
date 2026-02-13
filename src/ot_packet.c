@@ -12,6 +12,8 @@ static ssize_t ot_pkt_serialize_pack_header(ot_pkt_header h, uint8_t* buf, size_
 static ssize_t ot_pkt_serialize_pack_payload(ot_payload* head, uint8_t* buf, size_t buflen);
 static ssize_t ot_pkt_deserialize_unpack_header(ot_pkt_header* h, uint8_t* buf, size_t buflen);
 static ssize_t ot_pkt_deserialize_unpack_payload(ot_payload** phead, uint8_t* buf, size_t buflen);
+
+static void ot_payload_destroy(ot_payload** pp);
 /**
   * Public implementations
   */
@@ -42,7 +44,7 @@ ot_pkt* ot_pkt_create()
   return res;
 }
 
-ot_payload* ot_payload_create(ot_pkt_type_t t, void* v, uint8_t vl)
+ot_payload* ot_payload_create(uint8_t t, void* v, uint8_t vl)
 {
   ot_payload* res = malloc(sizeof(ot_payload));
   if (res == NULL) return NULL;
@@ -54,7 +56,7 @@ ot_payload* ot_payload_create(ot_pkt_type_t t, void* v, uint8_t vl)
   }
 
   memcpy(res->value, v, vl);
-  res->type = (uint8_t)t;
+  res->type = t;
   res->vlen = vl; 
   res->next = NULL;
 
@@ -100,7 +102,7 @@ typedef struct ot_pkt_header
 // Singly-linked list for payload entries in an Otter packet
 typedef struct ot_payload
 {
-  ot_pkt_type_t               type; 
+  uint8_t                     type; 
   void*                       value;
   uint8_t                     vlen;
   struct ot_payload*          next;
@@ -136,6 +138,10 @@ ssize_t ot_pkt_deserialize(struct ot_pkt* pkt, uint8_t* buf, size_t buflen)
   if ( (bytes_deserialized += ot_pkt_deserialize_unpack_header(&(pkt->header), buf, buflen)) < 0 ) 
   {
     fprintf(stderr, "pkt deserialization failed: cannot deserialize header\n");
+    if (pkt->payload != NULL)
+    {
+      
+    }
     return -1;
   }
   if ( (bytes_deserialized += ot_pkt_deserialize_unpack_payload(&(pkt->payload), buf, buflen)) < 0 ) 
@@ -151,13 +157,7 @@ void ot_pkt_destroy(ot_pkt** o)
 {
   ot_pkt* pkt = *o;
 
-  while (pkt->payload != NULL)
-  {
-    ot_payload* tmp = pkt->payload;
-    pkt->payload = pkt->payload->next;
-    free(tmp->value);
-    free(tmp);
-  }
+  ot_payload_destroy(&(pkt->payload));
 
   free(*o);
   *o = NULL;
@@ -257,12 +257,12 @@ static ssize_t ot_pkt_deserialize_unpack_payload(ot_payload** phead, uint8_t* bu
   size_t offset = sizeof(ot_pkt_header); //<< we start after we serialize the header
   while (offset < buflen)
   {
-    if (buf[offset] == 0xFF) break;                                   //<< stop iterating if we find the terminator (type=0xFF)
-    if (offset + 1 >= buflen) return -1;  //<< if out of bounds, immediately return -1 (FREE THE PAYLOAD FROM CALLER!!)
+    if (buf[offset] == 0xFF) break;       //<< stop iterating if we find the terminator (type=0xFF)
+    if (offset + 1 >= buflen) return -1;  //<< if out of bounds, immediately return -1 
 
     // Extract type
-    ot_pkt_type_t t;
-    t = (ot_pkt_type_t)buf[offset];
+    uint8_t t;
+    t = buf[offset];
     offset++; //<< point to first byte of vlen
 
     // Extract value length
@@ -283,4 +283,23 @@ static ssize_t ot_pkt_deserialize_unpack_payload(ot_payload** phead, uint8_t* bu
   }
 
   return offset-sizeof(ot_pkt_header); //<< return bytes deserialized as usual
+}
+
+static void ot_payload_destroy(ot_payload** pp)
+{
+  if (pp == NULL) return;
+
+  ot_payload* head = *pp;
+
+  while (head != NULL)
+  {
+    ot_payload* tmp = head;
+    head = head->next;
+    free(tmp->value);
+    free(tmp);
+  }
+  
+  *pp = NULL;
+
+  return;
 }
