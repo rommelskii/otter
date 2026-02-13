@@ -42,8 +42,6 @@ int main(void)
   bytes_to_macstr(TEST_BYTES_SRV_MAC, srvmac_str);
   bytes_to_macstr(TEST_BYTES_CLI_MAC, climac_str);
   
-  printf("%s %s", srvmac_str, climac_str);
-
   EXPECT( strcmp(TEST_STR_SRV_MAC, srvmac_str) == 0, "(str to bytes) srv mac");
   EXPECT( strcmp(TEST_STR_CLI_MAC, climac_str) == 0, "(str to bytes) cli mac");
 
