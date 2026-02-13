@@ -32,7 +32,7 @@ int main(void)
   uint32_t TEST_SRV_IP = inet_addr("192.168.100.1");
   uint32_t TEST_CLI_IP = inet_addr("1.100.168.192");
   uint32_t TEST_PAYLOAD_VALUE = inet_addr("203.118.16.2");
-  size_t TEST_PAYLOAD_VLEN = sizeof(TEST_PAYLOAD_VALUE);
+  uint8_t TEST_PAYLOAD_VLEN = (uint8_t)sizeof(TEST_PAYLOAD_VALUE);
 
   printf("---- BEGIN PKT TESTS ----\n");
   
@@ -68,27 +68,27 @@ int main(void)
   // Begin packet tests
   ot_pkt* o = ot_pkt_create();
   EXPECT(&(o->header) != NULL, "(pkt) header init");
-  EXPECT(o->payload != NULL, "(pkt) payload init");
+  EXPECT(o->payload == NULL, "(pkt) payload init");
   
   o->header = header;
   EXPECT(memcmp(&header, &(o->header), sizeof(header)) == 0, "(pkt) header set");
 
-  ot_payload* test_payload = ot_payload_create(TEST_PAYLOAD_TYPE, &TEST_PAYLOAD_VALUE, TEST_PAYLOAD_VLEN);
-  ot_payload_append(o->payload, test_payload);
-  ot_payload_append(o->payload, test_payload);
-  ot_payload_append(o->payload, test_payload);
+  //ot_payload* test_payload = ot_payload_create(TEST_PAYLOAD_TYPE, &TEST_PAYLOAD_VALUE, TEST_PAYLOAD_VLEN);
+  o->payload = ot_payload_append(o->payload, ot_payload_create(TEST_PAYLOAD_TYPE, &(uint32_t){TEST_PAYLOAD_VALUE}, TEST_PAYLOAD_VLEN));
+  ot_payload_append(o->payload, ot_payload_create(TEST_PAYLOAD_TYPE, &(uint32_t){TEST_PAYLOAD_VALUE}, TEST_PAYLOAD_VLEN));
+  ot_payload_append(o->payload, ot_payload_create(TEST_PAYLOAD_TYPE, &(uint32_t){TEST_PAYLOAD_VALUE}, TEST_PAYLOAD_VLEN));
 
   size_t count = 0;
   ot_payload* iter = o->payload;
   for(; iter != NULL; iter=iter->next)
   {
-    uint32_t* value = iter->value;
-    EXPECT(TEST_PAYLOAD_TYPE == iter->type, "(pkt) payload type test");
-    EXPECT(TEST_PAYLOAD_VALUE == *value, "(pkt) payload value test");
-    EXPECT(TEST_PAYLOAD_VLEN == iter->vlen, "(pkt) payload vlen test");
+    uint32_t* value = (uint32_t*)iter->value;
+    if (TEST_PAYLOAD_TYPE != iter->type) continue;
+    if (TEST_PAYLOAD_VALUE != *value) continue;
+    if (TEST_PAYLOAD_VLEN != iter->vlen) continue;
     ++count; 
   }
-  EXPECT(count == 3, "(pkt) append test");
+  EXPECT(count == 3, "(pkt) payload append & integrity test");
   // End packet tests
 
   // Begin pkt serialization tests
@@ -103,7 +103,34 @@ int main(void)
 
   EXPECT(ser_bytes == deser_bytes, "(pkt serialization) serialization/deserialization bytes equality");
 
-  EXPECT(memcmp(deser_res, o, sizeof(ot_pkt)), "(pkt serialization) structure equality test");
+  struct ot_payload* oti = deser_res->payload;
+  size_t res_payload_count = 0;
+  while (oti != NULL)
+  {
+    uint32_t* value = oti->value;
+    if (oti->type != TEST_PAYLOAD_TYPE) 
+    {
+      oti = oti->next;
+      continue;
+    }
+    if (*value != TEST_PAYLOAD_VALUE) 
+    {
+      oti = oti->next;
+      continue;
+    }
+    if (oti->vlen != TEST_PAYLOAD_VLEN) 
+    {
+      oti = oti->next;
+      continue;
+    }
+    ++res_payload_count;
+      oti = oti->next;
+  }
+  EXPECT(res_payload_count == count, "(pkt serialization) structure equality test");
+  if (tests_failed > 0)
+  {
+    printf("serialized payload count: %zu => deserialized payload count: %zu\n", count, res_payload_count);
+  }
   // End pkt serialization tests
 
   // Begin destructor tests
@@ -114,7 +141,13 @@ int main(void)
   // Other cleanup
   ot_pkt_destroy(&deser_res); //<< also destroy;
 
-  if (tests_failed > 0) return 1;
+  printf("---- END PKT TESTS ----\n");
+
+  if (tests_failed > 0) 
+  {
+    fprintf(stderr, "One or more tests have failed! Exiting...\n");
+    return 1;
+  }
 
   return 0;
 }
