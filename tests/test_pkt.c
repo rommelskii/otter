@@ -27,7 +27,7 @@ int main(void)
   uint64_t TEST_RENEW_TIME = 1770967837 - 3600;
 
   //ot_pkt* ot_payload_create(ot_pkt_type t, void* v, size_t vl);
-  ot_pkt_type_t TEST_PAYLOAD_TYPE = TACK;
+  uint8_t TEST_PAYLOAD_TYPE = 0x01;
   // cannot be compile time constants smh
   uint32_t TEST_SRV_IP = inet_addr("192.168.100.1");
   uint32_t TEST_CLI_IP = inet_addr("1.100.168.192");
