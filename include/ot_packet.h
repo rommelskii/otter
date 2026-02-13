@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 typedef enum 
 {
@@ -13,7 +14,7 @@ typedef enum
   CPULL,
   CPUSH,
   CINV
-} ot_pkt_type;
+} ot_pkt_type_t;
 
 #pragma pack(push, 1)
 typedef struct ot_pkt_header
@@ -30,10 +31,10 @@ typedef struct ot_pkt_header
 // Singly-linked list for payload entries in an Otter packet
 typedef struct ot_payload
 {
-  ot_pkt_type               type; 
+  ot_pkt_type_t               type; 
   void*                     value;
   size_t                    vlen;
-  struct ot_pkt_payload*    next;
+  struct ot_payload*    next;
 } ot_payload;
 
 typedef struct ot_pkt 
@@ -49,19 +50,25 @@ ot_pkt_header ot_pkt_header_create(uint32_t srv_ip, uint32_t cli_ip, uint8_t* sr
 ot_pkt* ot_pkt_create();
 
 // Allocates memory for a payload node and sets its fields
-ot_pkt* ot_payload_create(ot_pkt_type t, void* v, size_t vl);
+ot_payload* ot_payload_create(ot_pkt_type_t t, void* v, size_t vl);
 
 // Appends a payload node to the end of a payload list
 ot_pkt* ot_payload_append(ot_payload* head, ot_payload* add);
 
 // Serializes an ot_pkt structure to a byte buffer and returns bytes serialized
-ssize_t ot_pkt_serialize(uint8_t* buf, struct ot_pkt pkt);
+ssize_t ot_pkt_serialize(struct ot_pkt* pkt, uint8_t* buf);
 
 // Deserializes/unpacks an ot_pkt structure from a byte buffer and returns bytes deserialized
-ssize_t ot_pkt_deserialize(uint8_t* buf, struct ot_pkt pkt);
+ssize_t ot_pkt_deserialize(struct ot_pkt* pkt, uint8_t* buf);
 
 // Frees an Otter packet to memory 
 void ot_pkt_destroy(ot_pkt** o);
+
+// Converts a MAC string to a MAC byte buffer
+void macstr_to_bytes(const char* macstr, uint8_t* macbytes);
+
+// Converts a MAC byte buffer to a string
+void bytes_to_macstr(uint8_t* macbytes, const char* macstr);
 
 /*
 * STATIC STUFF BELOW
