@@ -11,7 +11,7 @@
 static ssize_t ot_pkt_serialize_pack_header(ot_pkt_header h, uint8_t* buf, size_t buflen);
 static ssize_t ot_pkt_serialize_pack_payload(ot_payload* head, uint8_t* buf, size_t buflen);
 static ssize_t ot_pkt_deserialize_unpack_header(ot_pkt_header* h, uint8_t* buf, size_t buflen);
-static ssize_t ot_pkt_deserialize_unpack_payload(ot_payload* head, uint8_t* buf, size_t buflen);
+static ssize_t ot_pkt_deserialize_unpack_payload(ot_payload** phead, uint8_t* buf, size_t buflen);
 /**
   * Public implementations
   */
@@ -32,7 +32,12 @@ ot_pkt_header ot_pkt_header_create(uint32_t srv_ip, uint32_t cli_ip, uint8_t* sr
 ot_pkt* ot_pkt_create()
 {
   ot_pkt* res = malloc(sizeof(ot_pkt));
-  if (res == NULL) return NULL;
+
+  if (res == NULL) {
+    return NULL;
+  }
+
+  res->payload = NULL;
 
   return res;
 }
@@ -41,27 +46,42 @@ ot_payload* ot_payload_create(ot_pkt_type_t t, void* v, uint8_t vl)
 {
   ot_payload* res = malloc(sizeof(ot_payload));
   if (res == NULL) return NULL;
-  
+
   res->value = malloc(vl);
+  if (res->value == NULL) {
+    free(res); 
+    return NULL;
+  }
+
   memcpy(res->value, v, vl);
-
-  res->type = t;
-
+  res->type = (uint8_t)t;
+  res->vlen = vl; 
   res->next = NULL;
 
-  return NULL;
+  return res; // Return the pointer to the newly created object
 }
 
 ot_payload* ot_payload_append(ot_payload* head, ot_payload* add) 
 {
-  if (head == NULL || add == NULL) return NULL;
-  
-  ot_payload* oti = head;
-  for(; oti->next != NULL; oti = oti->next);
+  // If there's nothing to add, just return the current list as-is
+  if (add == NULL) return head;
 
+  // If the list is empty, the new node becomes the head
+  if (head == NULL) {
+    return add;
+  }
+
+  // Traverse to the end of the list
+  ot_payload* oti = head;
+  while (oti->next != NULL) {
+    oti = oti->next;
+  }
+
+  // Attach the new node/sublist
   oti->next = add;
 
-  return oti;
+  // Return the original head so the caller doesn't lose the list start
+  return head;
 }
 
 /*
@@ -98,7 +118,7 @@ ssize_t ot_pkt_serialize(struct ot_pkt* pkt, uint8_t* buf, size_t buflen)
     fprintf(stderr, "pkt serialization failed: cannot serialize header\n");
     return -1;
   }
-  if ( (bytes_serialized += ot_pkt_serialize_pack_payload(pkt->payload, buf, buflen)) < 0 ) return -1;
+  if ( (bytes_serialized += ot_pkt_serialize_pack_payload(pkt->payload, buf, buflen)) < 0 )
   {
     fprintf(stderr, "pkt serialization failed: cannot serialize payload\n");
     return -1;
@@ -118,7 +138,7 @@ ssize_t ot_pkt_deserialize(struct ot_pkt* pkt, uint8_t* buf, size_t buflen)
     fprintf(stderr, "pkt deserialization failed: cannot deserialize header\n");
     return -1;
   }
-  if ( (bytes_deserialized += ot_pkt_deserialize_unpack_payload(pkt->payload, buf, buflen)) < 0 ) return -1;
+  if ( (bytes_deserialized += ot_pkt_deserialize_unpack_payload(&(pkt->payload), buf, buflen)) < 0 ) 
   {
     fprintf(stderr, "pkt deserialization failed: cannot deserialize payload\n");
     return -1;
@@ -226,12 +246,12 @@ static ssize_t ot_pkt_deserialize_unpack_header(ot_pkt_header* h, uint8_t* buf, 
 
   memcpy(h, &buf[0], sizeof(ot_pkt_header));
 
-  return sizeof(ot_pkt_header);
+  return (ssize_t)sizeof(ot_pkt_header);
 }
 
-static ssize_t ot_pkt_deserialize_unpack_payload(ot_payload* head, uint8_t* buf, size_t buflen)
+static ssize_t ot_pkt_deserialize_unpack_payload(ot_payload** phead, uint8_t* buf, size_t buflen)
 {
-  if(head == NULL || buf == NULL || buflen == 0) return -1;
+  if(phead == NULL || buf == NULL || buflen == 0) return -1;
   
   // Iterate over the buffer 
   size_t offset = sizeof(ot_pkt_header); //<< we start after we serialize the header
@@ -242,7 +262,7 @@ static ssize_t ot_pkt_deserialize_unpack_payload(ot_payload* head, uint8_t* buf,
 
     // Extract type
     ot_pkt_type_t t;
-    t = buf[offset];
+    t = (ot_pkt_type_t)buf[offset];
     offset++; //<< point to first byte of vlen
 
     // Extract value length
@@ -259,7 +279,7 @@ static ssize_t ot_pkt_deserialize_unpack_payload(ot_payload* head, uint8_t* buf,
     memcpy(v, &buf[offset], vl);
     offset += vl; //<< point to next value type
 
-    if (ot_payload_append(head, ot_payload_create(t,v,vl)) == NULL) return -1; //<< append; exit if we cant do so
+    if ((*phead = ot_payload_append(*phead, ot_payload_create(t,v,vl))) == NULL) return -1; //<< append; exit if we cant do so
   }
 
   return offset-sizeof(ot_pkt_header); //<< return bytes deserialized as usual
