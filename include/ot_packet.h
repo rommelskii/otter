@@ -42,6 +42,9 @@ typedef struct ot_pkt
   ot_payload *payload; 
 } ot_pkt;
 
+// Creates a Otter packet header
+ot_pkt_header ot_pkt_header_create(uint32_t srv_ip, uint32_t cli_ip, uint8_t* src_mac, uint8_t* cli_mac, uint64_t exp_time, uint64_t renew_time);
+
 // Allocates memory for a ot_pkt
 ot_pkt* ot_pkt_create();
 
