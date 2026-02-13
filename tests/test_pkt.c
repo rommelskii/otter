@@ -15,8 +15,6 @@
 
 int tests_failed = 0;
 
-  
-
 int main(void) 
 {
   uint8_t TEST_BYTES_SRV_MAC[6] = {0xaa,0xbb,0xcc,0xdd,0xee,0xff};
@@ -39,10 +37,13 @@ int main(void)
   printf("---- BEGIN PKT TESTS ----\n");
   
   // Begin string/byte formatter tests
-  char* srvmac_str;
-  char* climac_str;
+  char srvmac_str[256];
+  char climac_str[256];
   bytes_to_macstr(TEST_BYTES_SRV_MAC, srvmac_str);
   bytes_to_macstr(TEST_BYTES_CLI_MAC, climac_str);
+  
+  printf("%s %s", srvmac_str, climac_str);
+
   EXPECT( strcmp(TEST_STR_SRV_MAC, srvmac_str) == 0, "(str to bytes) srv mac");
   EXPECT( strcmp(TEST_STR_CLI_MAC, climac_str) == 0, "(str to bytes) cli mac");
 
@@ -96,10 +97,10 @@ int main(void)
   ot_pkt* deser_res = ot_pkt_create();
   uint8_t buf[2048];
 
-  ssize_t ser_bytes = ot_pkt_serialize(o, buf);
+  ssize_t ser_bytes = ot_pkt_serialize(o, buf, sizeof buf);
   EXPECT(ser_bytes != -1, "(pkt serialization) serialization test");
 
-  ssize_t deser_bytes = ot_pkt_deserialize(deser_res, buf);
+  ssize_t deser_bytes = ot_pkt_deserialize(deser_res, buf, sizeof buf);
   EXPECT(deser_bytes != -1, "(pkt serialization) deserialization test");
 
   EXPECT(ser_bytes == deser_bytes, "(pkt serialization) serialization/deserialization bytes equality");
