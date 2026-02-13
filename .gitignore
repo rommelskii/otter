@@ -1,0 +1,92 @@
+# ============================================
+# CMake Artifacts
+# ============================================
+# Ignore the entire build directory (standard practice)
+build/
+build*/
+out/
+
+# Ignore scratches
+scratch/
+*.scratch
+scratch
+
+
+# Ignore executables 
+bin/
+main
+
+# If someone runs cmake in the root (try to avoid this!)
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/ ;
+cmake_install.cmake
+install_manifest.txt
+Makefile
+*.cmake
+
+# ============================================
+# Compiled Binaries & Libraries
+# ============================================
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+
+# ============================================
+# IDEs and Editors
+# ============================================
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Neovim / Vim
+[._]*.s[a-v][a-z]
+[._]sw[a-p]
+.netrwhist
+Session.vim
+.nvim/
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list/
+tramp
+.\#*
+
+# ============================================
+# Dependency Managers & Tools
+# ============================================
+# vcpkg
+vcpkg_installed/
+
+# Conan
+conan/
+conan.lock
+
+# Python (if using for scripts/ML)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+
+# ============================================
+# OS Generated Files
+# ============================================
+.DS_Store
+Thumbs.db
+
