@@ -15,14 +15,6 @@
 
 int tests_failed = 0;
 
-/*
-// Frees a server context and its ctable to memory
-void ot_srv_ctx_destroy(ot_srv_ctx** os);
-
-// Runs the server loop
-void ot_srv_run(); //<< insert the packet logic here
-*/
-
 int main(void) 
 {
   int TEST_PORT = 7192;
@@ -77,7 +69,5 @@ int main(void)
 
   if (tests_failed > 0) return 1;
 
-  // Runtime tests
-  // TODO: add the runtime tests here after finishing the payload adjustments and stuff
   return 0;
 }
