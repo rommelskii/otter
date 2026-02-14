@@ -46,20 +46,13 @@ ot_srv_ctx_mdata ot_srv_ctx_mdata_create(const int PORT, const uint32_t SRV_IP, 
 }
 
 // Allocates memory for a client context and creates it
-ot_cli_ctx* ot_cli_ctx_create(ot_pkt_header h, ot_cli_state_t s)
+ot_cli_ctx ot_cli_ctx_create(ot_pkt_header h, ot_cli_state_t s)
 {
-  // Check if we can allocate memory to new client context
-  ot_cli_ctx* pcc = malloc(sizeof(ot_cli_ctx));
-  if (pcc == NULL)
-  {
-    fprintf(stderr, "ot_cli_ctx_create error: out of memory");
-    free(pcc);
-    return NULL;
-  }
+  ot_cli_ctx pcc = {0};
   
   // Proceed to copying values to new and allocated client context
-  memcpy(&(pcc->header), &h, sizeof(ot_pkt_header));
-  pcc->state = s;
+  memcpy(&(pcc.header), &h, sizeof(ot_pkt_header));
+  pcc.state = s;
 
   return pcc;
 }
