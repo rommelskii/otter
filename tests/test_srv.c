@@ -46,9 +46,9 @@ int main(void)
 
 
   // Client context creation
-  ot_cli_ctx* cli_ctx_res = ot_cli_ctx_create(TEST_HEADER, TEST_STATE);
-  EXPECT(memcmp(&(cli_ctx_res->header), &TEST_HEADER, sizeof(ot_pkt_header)) == 0, "[cli ctx] header initialization");
-  EXPECT(cli_ctx_res->state == TEST_STATE, "[cli ctx] state initialization");
+  ot_cli_ctx cli_ctx_res = ot_cli_ctx_create(TEST_HEADER, TEST_STATE);
+  EXPECT(memcmp(&(cli_ctx_res.header), &TEST_HEADER, sizeof(ot_pkt_header)) == 0, "[cli ctx] header initialization");
+  EXPECT(cli_ctx_res.state == TEST_STATE, "[cli ctx] state initialization");
   
   // Server metadata creation
   ot_srv_ctx_mdata srv_ctx_mdata_res = ot_srv_ctx_mdata_create(TEST_PORT, TEST_SRV_IP, TEST_BYTES_SRV_MAC);
@@ -59,26 +59,25 @@ int main(void)
 
   // Server context creation
   ot_srv_ctx* srv_ctx_res = ot_srv_ctx_create(srv_ctx_mdata_res);
-  EXPECT(srv_ctx_res->ctable != NULL, "[cli ctx] ctable initialization");
-  EXPECT(srv_ctx_res->otable != NULL, "[cli ctx] otable initialization");
+  EXPECT(srv_ctx_res->ctable != NULL, "[srv ctx] ctable initialization");
+  EXPECT(srv_ctx_res->otable != NULL, "[srv ctx] otable initialization");
 
   // ctable functionality 
-  const char* cli_ctx_set_res = ot_srv_set_cli_ctx(srv_ctx_res, TEST_STR_SRV_MAC, *cli_ctx_res);
+  const char* cli_ctx_set_res = ot_srv_set_cli_ctx(srv_ctx_res, TEST_STR_SRV_MAC, cli_ctx_res);
   EXPECT( strcmp(cli_ctx_set_res, TEST_STR_SRV_MAC) == 0, "[ctable] set functionality");
 
   ot_cli_ctx cli_ctx_get_res = ot_srv_get_cli_ctx(srv_ctx_res, TEST_STR_SRV_MAC);
-  EXPECT(memcmp(&cli_ctx_get_res, cli_ctx_res, sizeof(ot_cli_ctx)) == 0, "[ctable] get functionality");
+  EXPECT(memcmp(&cli_ctx_get_res, &cli_ctx_res, sizeof(ot_cli_ctx)) == 0, "[ctable] get functionality");
 
   // Destructor tests
   ot_srv_ctx_destroy(&srv_ctx_res);
   EXPECT(srv_ctx_res == NULL, "[srv ctx destructor] nullity test");
 
-  // Runtime tests
-
-  // TODO: add the runtime tests here after finishing the payload adjustments and stuff
-
   printf("---- END SRV TESTS ----\n");
 
   if (tests_failed > 0) return 1;
+
+  // Runtime tests
+  // TODO: add the runtime tests here after finishing the payload adjustments and stuff
   return 0;
 }
