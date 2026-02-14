@@ -54,7 +54,7 @@ typedef struct ot_srv_ctx
 ot_srv_ctx_mdata ot_srv_ctx_mdata_create(const int PORT, const uint32_t SRV_IP, uint8_t* SRV_MAC);
 
 // Allocates memory for a client context and creates it
-ot_cli_ctx* ot_cli_ctx_create(ot_pkt_header h, ot_cli_state_t s);
+ot_cli_ctx ot_cli_ctx_create(ot_pkt_header h, ot_cli_state_t s);
 
 // Allocates memory for a server context and creates it
 ot_srv_ctx* ot_srv_ctx_create(ot_srv_ctx_mdata sc_metadata);
