@@ -48,7 +48,6 @@ ot_cli_ctx* ot_cli_ctx_create(ot_pkt_header h, ot_cli_state_t s);
 // Allocates memory for a server context and creates it
 ot_srv_ctx* ot_srv_ctx_create(const int PORT, uint32_t srv_ip, uint8_t* srv_mac);
 
-
 /**
 * Client context getters/setters
 */
@@ -62,7 +61,7 @@ ot_cli_ctx ot_srv_get_cli_ctx(ot_srv_ctx* sc, const char* macstr);
 * Destructors
 */
 // Frees a server context and its ctable to memory
-void ot_srv_ctx_destroy(ot_srv_context** os);
+void ot_srv_ctx_destroy(ot_srv_ctx** os);
 
 // Runs the server loop
 void ot_srv_run(); //<< insert the packet logic here
