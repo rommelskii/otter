@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#define DEF_SZ 8
+#define HT_DEF_SZ 8
 
 // Opaque type definition
 typedef struct ht ht;
