@@ -8,9 +8,30 @@
 
 
 /**
+ * Private method wrappers for ht API
+ */
+static const char* ht_set_cli_ctx(ht* ctable, const char* macstr, ot_cli_ctx cc)
+{
+  return ht_set(&ctable, macstr, &cc, sizeof(cc));
+}
+
+static ot_cli_ctx ht_get_cli_ctx(ht* ctable, const char* macstr)
+{
+  ot_cli_ctx* ret = ht_get(ctable, macstr);
+
+  if (ret == NULL)
+  {
+    ot_cli_ctx failret = {0};
+    failret.state = UNKN;
+    return failret;
+  }
+
+  return *ret;
+}
+
+/**
  * Context initializers
  */
-
 // Creates a server context metadata object
 ot_srv_ctx_mdata ot_srv_ctx_mdata_create(const int PORT, const uint32_t SRV_IP, uint8_t* SRV_MAC)
 {
@@ -73,17 +94,23 @@ const char* ot_srv_set_cli_ctx(ot_srv_ctx* sc, const char* macstr, ot_cli_ctx cc
 {
   if (sc == NULL || macstr == NULL) return NULL;
 
-    
+  if (strlen(macstr) != 17) return NULL;
 
-  return NULL;
+  return ht_set_cli_ctx(sc->ctable, macstr, cc);
 }
 
 // Finds a client context from a server's ctable and returns it
 ot_cli_ctx ot_srv_get_cli_ctx(ot_srv_ctx* sc, const char* macstr)
 {
-  ot_cli_ctx ret = {0};
+  ot_cli_ctx failret = {0};
+  failret.state = UNKN;
 
-  return ret;
+  if (sc == NULL || macstr == NULL)
+  {
+    return failret;
+  }
+
+  return ht_get_cli_ctx(sc->ctable, macstr);
 }
 
 /**
@@ -92,6 +119,25 @@ ot_cli_ctx ot_srv_get_cli_ctx(ot_srv_ctx* sc, const char* macstr)
 // Frees a server context and its ctable to memory
 void ot_srv_ctx_destroy(ot_srv_ctx** os) 
 {
+  if (os == NULL) return;
+  
+  ot_srv_ctx* osc = *os; 
+  
+  if (osc->ctable != NULL)
+  {
+    ht_destroy(osc->ctable);
+    osc->ctable = NULL;
+  }
+
+  if (osc->otable != NULL)
+  {
+    ht_destroy(osc->otable);
+    osc->otable = NULL;
+  }
+
+  free(*os);
+
+  *os = NULL;
 
   return;
 }
