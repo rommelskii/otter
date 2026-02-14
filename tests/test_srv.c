@@ -64,7 +64,7 @@ int main(void)
 
   // ctable functionality 
   const char* cli_ctx_set_res = ot_srv_set_cli_ctx(srv_ctx_res, TEST_STR_SRV_MAC, *cli_ctx_res);
-  EXPECT(cli_ctx_set_res == TEST_STR_SRV_MAC, "[ctable] set functionality");
+  EXPECT( strcmp(cli_ctx_set_res, TEST_STR_SRV_MAC) == 0, "[ctable] set functionality");
 
   ot_cli_ctx cli_ctx_get_res = ot_srv_get_cli_ctx(srv_ctx_res, TEST_STR_SRV_MAC);
   EXPECT(memcmp(&cli_ctx_get_res, cli_ctx_res, sizeof(ot_cli_ctx)) == 0, "[ctable] get functionality");
