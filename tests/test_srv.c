@@ -49,17 +49,18 @@ int main(void)
   ot_cli_ctx* cli_ctx_res = ot_cli_ctx_create(TEST_HEADER, TEST_STATE);
   EXPECT(memcmp(&(cli_ctx_res->header), &TEST_HEADER, sizeof(ot_pkt_header)) == 0, "[cli ctx] header initialization");
   EXPECT(cli_ctx_res->state == TEST_STATE, "[cli ctx] state initialization");
+  
+  // Server metadata creation
+  ot_srv_ctx_mdata srv_ctx_mdata_res = ot_srv_ctx_mdata_create(TEST_PORT, TEST_SRV_IP, TEST_BYTES_SRV_MAC);
+  EXPECT(srv_ctx_mdata_res.port == TEST_PORT, "[srv ctx mdata] port initialization");
+  EXPECT(srv_ctx_mdata_res.sockfd == 0, "[srv ctx mdata] sockfd initialization");
+  EXPECT(srv_ctx_mdata_res.srv_ip == TEST_SRV_IP, "[srv ctx mdata] srv ip initialization");
+  EXPECT(memcmp(srv_ctx_mdata_res.srv_mac, TEST_BYTES_SRV_MAC, 6) == 0, "[srv ctx mdata] srv mac initialization");
 
   // Server context creation
-  ot_srv_ctx* srv_ctx_res = ot_srv_ctx_create(TEST_PORT, TEST_SRV_IP, TEST_BYTES_SRV_MAC);
-  EXPECT(srv_ctx_res->port == TEST_PORT, "[srv ctx] port initialization");
-  EXPECT(srv_ctx_res->sockfd == 0, "[srv ctx] sockfd initialization");
-
+  ot_srv_ctx* srv_ctx_res = ot_srv_ctx_create(srv_ctx_mdata_res);
   EXPECT(srv_ctx_res->ctable != NULL, "[cli ctx] ctable initialization");
   EXPECT(srv_ctx_res->otable != NULL, "[cli ctx] otable initialization");
-
-  EXPECT(srv_ctx_res->srv_ip == TEST_SRV_IP, "[cli ctx] srv ip initialization");
-  EXPECT(memcmp(srv_ctx_res->srv_mac, TEST_BYTES_SRV_MAC, 6) == 0, "[cli ctx] srv mac initialization");
 
   // ctable functionality 
   const char* cli_ctx_set_res = ot_srv_set_cli_ctx(srv_ctx_res, TEST_STR_SRV_MAC, *cli_ctx_res);
