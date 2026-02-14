@@ -16,12 +16,15 @@ typedef enum
   UNKN
 } ot_cli_state_t;
 
+#pragma pack(push, 1) //<< make memcmp happy
 typedef struct ot_cli_ctx 
 {
   ot_pkt_header     header;
   ot_cli_state_t    state;
 } ot_cli_ctx;
+#pragma pack(pop)
 
+#pragma pack(push, 1) //<< make memcmp happy
 typedef struct ot_srv_ctx
 {
   // Server variables
@@ -38,6 +41,7 @@ typedef struct ot_srv_ctx
   uint32_t  srv_ip;
   uint8_t   srv_mac[6];
 } ot_srv_ctx;
+#pragma pack(pop)
 
 /**
  * Context initializers
