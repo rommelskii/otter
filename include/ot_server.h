@@ -29,10 +29,10 @@ typedef struct ot_srv_ctx
   int       port;
 
   // Client context table
-  ht*       cli_ctable;
+  ht*       ctable;
 
   // EXPERIMENTAL: maps to specific tables
-  ht*       otfile_lookup;
+  ht*       otable;
 
   // Server information
   uint32_t  srv_ip;
