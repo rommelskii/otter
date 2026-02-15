@@ -36,14 +36,15 @@ typedef struct ot_pkt
 
 typedef enum {
   PL_STATE,
-  PL_SRC_IP,
-  PL_SRC_MAC,
+  PL_SRV_IP,
+  PL_SRV_MAC,
   PL_CLI_IP,
   PL_CLI_MAC,
   PL_ETIME,
   PL_RTIME,
   PL_UNAME,
-  PL_PSK
+  PL_PSK,
+  PL_UNKN,
 } ot_pkt_msgtype_t;
 
 // Creates a Otter packet header
