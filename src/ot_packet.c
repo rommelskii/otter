@@ -282,7 +282,7 @@ static void ot_payload_destroy(ot_payload** pp)
   return;
 }
 
-static const char* msgtype_to_str_ret(ot_pkt_msg_type msgtype) 
+static const char* msgtype_to_str_ret(ot_pkt_msgtype_t msgtype) 
 {
   switch(msgtype)
   {
@@ -291,6 +291,11 @@ static const char* msgtype_to_str_ret(ot_pkt_msg_type msgtype)
     case PL_SRV_MAC: return "PL_SRV_MAC"; break;
     case PL_CLI_IP: return "PL_CLI_IP"; break;
     case PL_CLI_MAC: return "PL_CLI_MAC"; break;
+    case PL_ETIME: return "PL_ETIME"; break;
+    case PL_RTIME: return "PL_RTIME"; break;
+    case PL_UNAME: return "PL_UNAME"; break;
+    case PL_PSK: return "PL_PSK"; break;
+    case PL_UNKN: return "PL_UNKN"; break;
   }
 
   return "PL_UNKN";
@@ -300,5 +305,5 @@ void msgtype_to_str(ot_pkt_msgtype_t msgtype, char* str_msgtype)
 {
   if (str_msgtype == NULL) return;
   
-  str_msgtype = msgtype_to_str_ret(msgtype);
+  str_msgtype = (char*)msgtype_to_str_ret(msgtype);
 }
