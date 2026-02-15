@@ -10,6 +10,7 @@ typedef enum
   TACK,
   TINV,
   TREN,
+  TPRV,
   CPULL,
   CPUSH,
   CINV,
