@@ -34,6 +34,14 @@ typedef struct ot_pkt
   ot_payload *payload; 
 } ot_pkt;
 
+typedef enum {
+  PL_STATE,
+  PL_IP,
+  PL_MAC,
+  PL_ETIME,
+  PL_RTIME
+} ot_pkt_msgtype_t
+
 // Creates a Otter packet header
 ot_pkt_header ot_pkt_header_create(uint32_t srv_ip, uint32_t cli_ip, uint8_t* srv_mac, uint8_t* cli_mac, uint64_t exp_time, uint64_t renew_time);
 
