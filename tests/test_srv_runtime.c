@@ -24,20 +24,35 @@ int tests_failed = 0;
 /**
 * PROTOTYPE FUNCTIONS
 */
-static void pl_parse_table_build(ht** pt, ot_payload* pl_head);
+static void pl_parse_table_build(ht** pt, ot_payload* pl_head); //<< could be implemented in ot packet library
 
+/**
+* PRIVATE TEST FIXTURE FUNCTIONS
+*/
+// Normal client behavior
 static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
 static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
 static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
 
+// Expired client behavior
+static int test_expired_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_expired_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
 
-// TEST HARNESS: test_treq
-//
-// Test method for building a TREQ payload and sending it at SRV_IP on port PORT 
-//  
-// For the clientside program API, it is better to create functions for extracing the information needed
-// in the metadata. It will probably utilize some system calls for communicating with the kernel.
-static void test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+// Error-handling behavior
+static int test_invalid_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_invalid_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// TEST HARNESS: test_treq
+////
+//// Test method for building a TREQ payload and sending it at SRV_IP on port PORT 
+////  
+//// For the clientside program API, it is better to create functions for extracing the information needed
+//// in the metadata. It will probably utilize some system calls for communicating with the kernel.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 {
   // Receive the reply for a TREQ packet to server
   uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
@@ -54,9 +69,9 @@ static void test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_
 
 
   // Header checks
-  EXPECT(reply_pkt != NULL, "[treq send] deserialization non-nullity test");
+  EXPECT(reply_pkt != NULL, "[treq test] deserialization non-nullity test");
 
-  ot_pkt_header reply_hd = reply_pkt.header;
+  ot_pkt_header reply_hd = reply_pkt->header;
 
   EXPECT(reply_hd.srv_ip == SRV_IP, "[treq reply] srv ip check");
   EXPECT(memcmp(reply_hd.srv_mac, srv_mac, 6) == 0, "[treq reply] srv mac check");
@@ -77,7 +92,7 @@ static void test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_
 
   // Start payload parsing
   // Check expected TACK reply with TREQ input
-  printf("[treq reply] checking for PL_STATE entry in parse table... ") 
+  printf("[treq reply] checking for PL_STATE entry in parse table... ");
   ot_cli_state_t* expected_tack = ht_get(parse_table, "PL_STATE");
   if (expected_tack == NULL)
   {
@@ -89,7 +104,7 @@ static void test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_
 
   // Check expected srv ip (should be same as the one sent in the header of the TREQ pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
-  printf("[treq reply] checking for PL_SRV_IP entry in parse table... ") 
+  printf("[treq reply] checking for PL_SRV_IP entry in parse table... ");
   if (expected_srv_ip == NULL)
   {
     printf("FAILED\n");
@@ -100,7 +115,7 @@ static void test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_
 
   // Check expected srv mac (also the same as the one in the header of the TREQ pkt)
   uint8_t* expected_srv_mac = ht_get(parse_table, "PL_SRV_MAC");
-  printf("[treq reply] checking for PL_SRV_MAC entry in parse table... ") 
+  printf("[treq reply] checking for PL_SRV_MAC entry in parse table... ");
   if (expected_srv_mac == NULL)
   {
     printf("FAILED\n");
@@ -114,23 +129,25 @@ static void test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_
 
   // Perform cleanup
   ot_pkt_destroy(&reply_pkt);
-
-  close(sockfd);
+  return 0;
 }
 
-// TEST HARNESS: test_tren
-//
-// Test method for building a TREN payload and sending it at SRV_IP on port PORT 
-//
-// To test TREN, the server must first identify the client via TREQ/TACK handshake. Here,
-// we utilize a special MAC address 00:00:00:AB:AB:FF that will induce a 20-second expiry time 
-// for the clients. Recall that an inbound TREN is valid only if the current time is within bounds 
-// of the renewal time as per the recorded context.
-static int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// TEST HARNESS: test_tren
+////
+//// Test method for building a TREN payload and sending it at SRV_IP on port PORT 
+////
+//// To test TREN, the server must first identify the client via TREQ/TACK handshake. Here,
+//// we utilize a special MAC address 00:00:00:AB:AB:FF that will induce a 20-second expiry time 
+//// for the clients. Recall that an inbound TREN is valid only if the current time is within bounds 
+//// of the renewal time as per the recorded context.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 {
   uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
   uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
-  uint8_t tren_cli_mac[6] = {0x00, 0x00, 0x00, 0xab, 0xab, 0xff};
 
   // Perform TREQ/TACK handshake first to create context in server ctable
   printf("[tren test] Performing TREQ/TACK handshake... ");
@@ -147,11 +164,11 @@ static int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_I
   printf("---- BEGIN TREN TESTS ----\n");
 
   // Send a TREN request to server and deserialize reply pkt 
-  test_tren_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, tren_cli_mac); //<< we now use the debug cli mac
+  test_tren_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac); //<< we now use the debug cli mac
 
   // Wait 16 seconds (75% of 20 seconds) to reach renewal window
   printf("[tren test] waiting 16 seconds to hit renew window... ");
-  sleep(16) 
+  sleep(16);
   printf("DONE\n");
 
   // Build parse table from possible TPRV reply pkt payloads
@@ -161,7 +178,7 @@ static int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_I
 
   // Start payload parsing
   // Check expected TACK reply with TREQ input
-  printf("[treq reply] checking for PL_STATE entry in parse table... ") 
+  printf("[tren reply] checking for PL_STATE entry in parse table... ");
   ot_cli_state_t* expected_tprv = ht_get(parse_table, "PL_STATE");
   if (expected_tprv == NULL)
   {
@@ -173,7 +190,7 @@ static int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_I
 
   // Check expected srv ip (should be same as the one sent in the header of the TREN pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
-  printf("[tren reply] checking for PL_SRV_IP entry in parse table... ") 
+  printf("[tren reply] checking for PL_SRV_IP entry in parse table... ");
   if (expected_srv_ip == NULL)
   {
     printf("FAILED\n");
@@ -184,42 +201,43 @@ static int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_I
 
   // Check expected srv mac (also the same as the one in the header of the TREN pkt)
   uint8_t* expected_srv_mac = ht_get(parse_table, "PL_SRV_MAC");
-  printf("[tren reply] checking for PL_SRV_MAC entry in parse table... ") 
+  printf("[tren reply] checking for PL_SRV_MAC entry in parse table... ");
   if (expected_srv_mac == NULL)
   {
     printf("FAILED\n");
     ++tests_failed;
     return -1;
   } else printf("SUCCESS\n");
-  EXPECT(memcmp(expected_srv_mac, tren_srv_mac, 6) == 0, "[tren reply] srv mac check");
+  EXPECT(memcmp(expected_srv_mac, srv_mac, 6) == 0, "[tren reply] srv mac check");
 
-  // Note: these values should be standardized in the entire codebase
-  uint32_t actual_exp_time = 86400;
-  uint32_t actual_renew_time = 86400 * 0.75;
-  EXPECT(reply_hd.exp_time == actual_exp_time, "[treq reply] exp time check");
-  EXPECT(reply_hd.renew_time == actual_renew_time, "[treq reply] renew time check");
 
   printf("---- END TREN TESTS ----\n");
 
   // Finally clean up reply pkt used for receiving the TPRV pkt
   ot_pkt_destroy(&reply_pkt);
+  return 0;
 }
 
-// TEST HARNESS: test_cpull
-//
-// For testing the CPULL functionality
-//
-// To test CPULL, like with TREN, we first have to perform a TREQ/TACK handshake to create a context in the server.
-// After which, we send a valid CPULL packet to the server and we cross check with the expected values as usual.
-static void test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// TEST HARNESS: test_cpull
+////
+//// For testing the CPULL functionality
+////
+//// To test CPULL, like with TREN, we first have to perform a TREQ/TACK handshake to create a context in the server.
+//// After which, we send a valid CPULL packet to the server and we cross check with the expected values as usual.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 {
   uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
   uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
+
   const char* UNAME = "rommelwashere2496";
   const char* PSK = "WhatACoolPassword123";
 
   // Perform TREQ/TACK handshake first to create context in server ctable
-  printf("[tren test] Performing TREQ/TACK handshake... ");
+  printf("[cpull test] Performing TREQ/TACK handshake... ");
   ot_pkt* reply_pkt = NULL;
   if (test_treq_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0)
   {
@@ -232,11 +250,6 @@ static void test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI
 
   printf("---- BEGIN CPULL TESTS ----\n");
 
-  // Wait 16 seconds (75% of 20 seconds) to reach renewal window
-  printf("[tren test] waiting 16 seconds to hit renew window... ");
-  sleep(16) 
-  printf("DONE\n");
-
   // Send a CPULL request to server and deserialize reply pkt 
   test_cpull_send(&reply_pkt, UNAME, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac); //<< dont forget to indicate UNAME for CPULL pkts
 
@@ -248,20 +261,20 @@ static void test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI
   // Start payload parsing
 
   // Check expected CPUSH reply with TREQ input
-  printf("[cpull reply] checking for PL_STATE entry in parse table... ") 
+  printf("[cpull reply] checking for PL_STATE entry in parse table... ");
   ot_cli_state_t* expected_cpush = ht_get(parse_table, "PL_STATE");
-  if (expected_tprv == NULL)
+  if (expected_cpush == NULL)
   {
     printf("FAILED\n");
     ++tests_failed;
     return -1;
   } else printf("SUCCESS\n");
-  EXPECT(*expected_tprv == CPUSH, "[cpull reply] reply type (CPUSH) check");
+  EXPECT(*expected_cpush == CPUSH, "[cpull reply] reply type (CPUSH) check");
 
 
   // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
-  printf("[cpull reply] checking for PL_SRV_IP entry in parse table... ") 
+  printf("[cpull reply] checking for PL_SRV_IP entry in parse table... ");
   if (expected_srv_ip == NULL)
   {
     printf("FAILED\n");
@@ -273,7 +286,7 @@ static void test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI
 
   // Check expected cli ip (should be same as the one sent in the header of the CPULL pkt)
   uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
-  printf("[cpull reply] checking for PL_CLI_IP entry in parse table... ") 
+  printf("[cpull reply] checking for PL_CLI_IP entry in parse table... ");
   if (expected_cli_ip == NULL)
   {
     printf("FAILED\n");
@@ -285,7 +298,7 @@ static void test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI
 
   // Check expected uname
   const char* expected_uname = ht_get(parse_table, "PL_UNAME");
-  printf("[cpull reply] checking for PL_UNAME entry in parse table... ") 
+  printf("[cpull reply] checking for PL_UNAME entry in parse table... ");
   if (expected_uname == NULL)
   {
     printf("FAILED\n");
@@ -297,7 +310,7 @@ static void test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI
   
   // Check expected PSK
   const char* expected_psk = ht_get(parse_table, "PL_PSK");
-  printf("[cpull reply] checking for PL_PSK entry in parse table... ") 
+  printf("[cpull reply] checking for PL_PSK entry in parse table... ");
   if (expected_psk == NULL)
   {
     printf("FAILED\n");
@@ -310,10 +323,369 @@ static void test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI
 
   // Finally clean up reply pkt used for receiving the TPRV pkt
   ot_pkt_destroy(&reply_pkt);
+
+  return 0;
 }
 
-static void errhan_test_tren(PORT, SRV_IP, CLI_IP);
-static void errhan_test_cpull(PORT, SRV_IP, CLI_IP);
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// TEST HARNESS: test_expired_tren
+////
+//// Testing the server's error-handling function to expired clients that perform TREN requests
+//// 
+//// We simply modify the test_cpull harness and utilize the 20-second-inducing debug MAC to perform a TREN request
+//// after the 20-second mark (the expiry time). Here, we expect a TINV reply from the server.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int test_expired_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
+{
+  uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+  uint8_t debug_cli_mac[6] = {0x00, 0x00, 0x00, 0xab, 0xab, 0xff}; //<< utilize debug mac to achieve 20-second expiry time
+
+  // Perform TREQ/TACK handshake first to create context in server ctable
+  printf("[tren test] Performing TREQ/TACK handshake... ");
+  ot_pkt* reply_pkt = NULL;
+  if (test_treq_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, debug_cli_mac) < 0) 
+  {
+    printf("FAILED\n");
+    return 1;
+  } else printf("SUCCESS\n");
+
+  // Clean up reply pkt from TREQ/TACK handshake
+  ot_pkt_destroy(&reply_pkt);
+
+  // Wait for client context to expire
+  sleep(21);
+  
+  printf("---- BEGIN EXPIRED TREN TESTS ----\n");
+
+  // Send a TREN request to server and deserialize reply pkt 
+  test_tren_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, debug_cli_mac); //<< we now use the debug cli mac
+
+  // Build parse table from possible TINV reply pkt payloads
+  ot_payload* reply_head = reply_pkt->payload;
+  ht* parse_table = ht_create(8);
+  pl_parse_table_build(&parse_table, reply_head);
+
+  // Start payload parsing
+  // Check expected TINV reply with TREN input
+  printf("[expired tren reply] checking for PL_STATE entry in parse table... ");
+  ot_cli_state_t* expected_tinv = ht_get(parse_table, "PL_STATE");
+  if (expected_tinv == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_tinv == TINV, "[expired tren reply] reply type (TINV) check");
+
+  // Check expected srv ip (should be same as the one sent in the header of the expired TREN pkt)
+  uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
+  printf("[expired tren reply] checking for PL_SRV_IP entry in parse table... ");
+  if (expected_srv_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_srv_ip == SRV_IP, "[expired tren reply] srv ip check");
+  
+  // Check expected cli ip (should be same as the one sent in the header of the expired TREN pkt)
+  uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
+  printf("[expired tren reply] checking for PL_CLI_IP entry in parse table... ");
+  if (expected_srv_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_cli_ip == CLI_IP, "[expired tren reply] cli ip check");
+
+  printf("---- END EXPIRED TREN TESTS ----\n");
+
+  // Finally clean up reply pkt used for receiving the TINV pkt
+  ot_pkt_destroy(&reply_pkt);
+
+  return 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// TEST HARNESS: test_expired_cpull
+////
+//// Testing the server's error-handling function to expired clients that perform CPULL requests
+//// 
+//// We simply modify the test_cpull harness and utilize the 20-second client MAC to perform a TREN request
+//// after the 20-second mark (the expiry time). Here, we expect a TINV reply from the server.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int test_expired_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
+{
+  uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+  uint8_t debug_cli_mac[6] = {0x00, 0x00, 0x00, 0xab, 0xab, 0xff};
+  const char* UNAME = "rommelwashere2496";
+  const char* PSK = "WhatACoolPassword123";
+
+  // Perform TREQ/TACK handshake first to create context in server ctable
+  printf("[cpull test] Performing TREQ/TACK handshake... ");
+  ot_pkt* reply_pkt = NULL;
+  if (test_treq_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, debug_cli_mac) < 0)
+  {
+    printf("FAILED\n");
+    return 1;
+  } else printf("SUCCESS\n");
+
+  // Clean up reply pkt from TREQ/TACK handshake
+  ot_pkt_destroy(&reply_pkt);
+
+  // Wait until client context expires
+  sleep(21);
+
+  printf("---- BEGIN EXPIRED CPULL TESTS ----\n");
+
+  // Send a CPULL request to server and deserialize reply pkt 
+  test_cpull_send(&reply_pkt, UNAME, PORT, SRV_IP, CLI_IP, srv_mac, debug_cli_mac); //<< dont forget to indicate UNAME for CPULL pkts
+
+  // Build parse table from possible CINV reply pkt payloads
+  ot_payload* reply_head = reply_pkt->payload;
+  ht* parse_table = ht_create(8);
+  pl_parse_table_build(&parse_table, reply_head);
+
+  // Start payload parsing
+
+  // Check expected CINV reply with CPULL input
+  printf("[expired cpull reply] checking for PL_STATE entry in parse table... ");
+  ot_cli_state_t* expected_cinv = ht_get(parse_table, "PL_STATE");
+  if (expected_cinv == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_cinv == CINV, "[expired cpull reply] reply type (CINV) check");
+
+
+  // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
+  uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
+  printf("[expired cpull reply] checking for PL_SRV_IP entry in parse table... ");
+  if (expected_srv_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_srv_ip == SRV_IP, "[expired cpull reply] srv ip check");
+
+  // Check expected cli ip (should be same as the one sent in the header of the CPULL pkt)
+  uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
+  printf("[expired cpull reply] checking for PL_CLI_IP entry in parse table... ");
+  if (expected_cli_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_cli_ip == CLI_IP, "[expired cpull reply] cli ip check");
+
+
+  // Check expected uname
+  const char* expected_uname = ht_get(parse_table, "PL_UNAME");
+  printf("[expired cpull reply] checking for PL_UNAME entry in parse table... ");
+  if (expected_uname == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(strcmp(expected_uname, UNAME) == 0, "[expired cpull reply] uname check");
+
+
+  printf("---- END EXPIRED CPULL TESTS ----\n");
+
+  // Finally clean up reply pkt used for receiving the TPRV pkt
+  ot_pkt_destroy(&reply_pkt);
+
+  return 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// TEST HARNESS: test_invalid_tren
+////
+//// Tests if the server can invalidate TREN requests from expired clients via TINV replies
+//// 
+//// We can just utilize the same logic as the test_tren harness but with an earlier renewal time
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int test_invalid_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
+{
+  uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+  uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
+
+  // Perform TREQ/TACK handshake first to create context in server ctable
+  printf("[invalid tren test] Performing TREQ/TACK handshake... ");
+  ot_pkt* reply_pkt = NULL;
+  if (test_treq_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0) 
+  {
+    printf("FAILED\n");
+    return 1;
+  } else printf("SUCCESS\n");
+
+  // Clean up reply pkt from TREQ/TACK handshake
+  ot_pkt_destroy(&reply_pkt);
+  
+  printf("---- BEGIN TREN TESTS ----\n");
+
+  // Send a TREN request to server and deserialize reply pkt 
+  test_tren_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac); //<< we now use the debug cli mac
+
+  // Wait 3 seconds (forcefully not in renewal window yet) to reach renewal window
+  printf("[invalid tren test] waiting 3 seconds to hit renew window... ");
+  sleep(3);
+  printf("DONE\n");
+
+  // Build parse table from possible TINV reply pkt payloads
+  ot_payload* reply_head = reply_pkt->payload;
+  ht* parse_table = ht_create(8);
+  pl_parse_table_build(&parse_table, reply_head);
+
+  // Start payload parsing
+  
+  // Check expected TINV reply with TREN input
+  printf("[invalid tren reply] checking for PL_STATE entry in parse table... ");
+  ot_cli_state_t* expected_tinv = ht_get(parse_table, "PL_STATE");
+  if (expected_tinv == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_tinv == TINV, "[invalid tren reply] reply type (TINV) check");
+
+  // Check expected srv ip (should be same as the one sent in the header of the expired TREN pkt)
+  uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
+  printf("[invalid tren reply] checking for PL_SRV_IP entry in parse table... ");
+  if (expected_srv_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_srv_ip == SRV_IP, "[expired tren reply] srv ip check");
+  
+  // Check expected cli ip (should be same as the one sent in the header of the expired TREN pkt)
+  uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
+  printf("[invalid tren reply] checking for PL_CLI_IP entry in parse table... ");
+  if (expected_srv_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_cli_ip == CLI_IP, "[invalid tren reply] cli ip check");
+
+  printf("---- END TREN TESTS ----\n");
+
+  // Finally clean up reply pkt used for receiving the TINV pkt
+  ot_pkt_destroy(&reply_pkt);
+
+  return 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// TEST HARNESS: test_invalid_cpull
+////
+//// Tests if the server can invalidate CPULL requests from expired clients via CINV replies
+//// 
+//// Again, just utilize the same logic as expired CPULL from the test_expired_cpull harness but with an UNKNOWN uname
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int test_invalid_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
+{
+  uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+  uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
+  const char* UNAME = "ThisIsNotReallyAKnownUsername";
+
+  // Perform TREQ/TACK handshake first to create context in server ctable
+  printf("[invalid cpull test] Performing TREQ/TACK handshake... ");
+  ot_pkt* reply_pkt = NULL;
+  if (test_treq_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0)
+  {
+    printf("FAILED\n");
+    return 1;
+  } else printf("SUCCESS\n");
+
+  // Clean up reply pkt from TREQ/TACK handshake
+  ot_pkt_destroy(&reply_pkt);
+
+  printf("---- BEGIN CPULL TESTS ----\n");
+
+  // Send a CPULL request to server and deserialize reply pkt 
+  test_cpull_send(&reply_pkt, UNAME, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac); //<< dont forget to indicate UNAME for CPULL pkts
+
+  // Build parse table from possible CINV reply pkt payloads
+  ot_payload* reply_head = reply_pkt->payload;
+  ht* parse_table = ht_create(8);
+  pl_parse_table_build(&parse_table, reply_head);
+
+  // Start payload parsing
+
+  // Check expected CINV reply with CPULL input
+  printf("[invalid cpull reply] checking for PL_STATE entry in parse table... ");
+  ot_cli_state_t* expected_cinv = ht_get(parse_table, "PL_STATE");
+  if (expected_cinv == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_cinv == CINV, "[invalid cpull reply] reply type (CINV) check");
+
+
+  // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
+  uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
+  printf("[invalid cpull reply] checking for PL_SRV_IP entry in parse table... ");
+  if (expected_srv_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_srv_ip == SRV_IP, "[invalid cpull reply] srv ip check");
+
+  // Check expected cli ip (should be same as the one sent in the header of the CPULL pkt)
+  uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
+  printf("[invalid cpull reply] checking for PL_CLI_IP entry in parse table... ");
+  if (expected_cli_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_cli_ip == CLI_IP, "[invalid cpull reply] cli ip check");
+
+
+  // Check expected uname
+  const char* expected_uname = ht_get(parse_table, "PL_UNAME");
+  printf("[invalid cpull reply] checking for PL_UNAME entry in parse table... ");
+  if (expected_uname == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(strcmp(expected_uname, UNAME) == 0, "[invalid cpull reply] uname check");
+
+
+  printf("---- END INVALID CPULL TESTS ----\n");
+
+  // Finally clean up reply pkt used for receiving the TPRV pkt
+  ot_pkt_destroy(&reply_pkt);
+
+  return 0;
+}
 
 int main(void) 
 {
@@ -332,7 +704,7 @@ int main(void)
 
   if (pid == 0)
   {
-    int srv_res = ot_srv_run(PORT, SRV_IP);
+//  int srv_res = ot_srv_run(PORT, SRV_IP); //<< uncomment this after compiling for syntax errors
     printf("Running server...\n");
     exit(0);
   } else {
@@ -342,8 +714,12 @@ int main(void)
     test_cpull(PORT, SRV_IP, CLI_IP);
 
     // Error-handling tests
-    errhan_test_tren(PORT, SRV_IP, CLI_IP);
-    errhan_test_cpull(PORT, SRV_IP, CLI_IP);
+    test_invalid_tren(PORT, SRV_IP, CLI_IP);
+    test_invalid_cpull(PORT, SRV_IP, CLI_IP);
+
+    // Expired client tests
+    test_expired_tren(PORT, SRV_IP, CLI_IP);
+    test_expired_cpull(PORT, SRV_IP, CLI_IP);
 
     wait(NULL);
     printf("Child process for client has stopped\n");
@@ -356,7 +732,7 @@ int main(void)
 
 static void pl_parse_table_build(ht** pt, ot_payload* pl_head)
 {
-  ot_payload* oti = reply_head;
+  ot_payload* oti = pl_head;
   for(; oti!=NULL; oti=oti->next) 
   {
     ot_pkt_msgtype_t msgtype = (ot_pkt_msgtype_t)oti->type; //<< this will be converted to a string
@@ -366,7 +742,7 @@ static void pl_parse_table_build(ht** pt, ot_payload* pl_head)
     void* value = oti->value;
     uint8_t vlen = oti->vlen;
 
-    ht_set(pt, msgtype_str, (size_t)vlen);
+    ht_set(pt, msgtype_str, value, (size_t)vlen);
   }
 }
 
@@ -386,14 +762,14 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   uint8_t pl_state_value = (uint8_t)TREQ; 
   uint8_t pl_state_vlen = (uint8_t)sizeof(pl_state_value);
 
-  ot_payload* pl_state_payload = ot_payload_create(pl_state_type, pl_state_value, pl_state_vlen);
+  ot_payload* pl_state_payload = ot_payload_create(pl_state_type, &pl_state_value, pl_state_vlen);
 
   // Specify TREQ cli_ip payload 
-  ot_payload_type_t pl_cli_ip_type = PL_CLI_IP;
+  ot_pkt_msgtype_t pl_cli_ip_type = PL_CLI_IP;
   uint32_t pl_cli_ip_value = CLI_IP;
   uint8_t pl_cli_ip_vlen = (uint8_t)sizeof(pl_cli_ip_value);
 
-  ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_type, pl_cli_ip_value, pl_cli_ip_vlen);
+  ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_type, &pl_cli_ip_value, pl_cli_ip_vlen);
 
   // Specify TREQ cli_mac payload
   // pl_create(PL_CLI_MAC, MAC*, sizeof(MAC))
@@ -401,11 +777,11 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   ot_pkt_msgtype_t pl_cli_mac_type = PL_CLI_MAC;
   uint8_t pl_cli_mac_value[6] = {0}; 
 
-  memcpy(pl_cli_mac_value, cli_mac, sizeof(cli_mac));
+  memcpy(pl_cli_mac_value, cli_mac, 6);
 
   uint8_t pl_cli_mac_vlen = (uint8_t)sizeof(cli_mac);
 
-  ot_payload* pl_cli_mac_payload = ot_payload_create(pl_cli_mac_type, pl_cli_mac_value, pl_cli_mac_vlen);
+  ot_payload* pl_cli_mac_payload = ot_payload_create(pl_cli_mac_type, &pl_cli_mac_value, pl_cli_mac_vlen);
 
   // Create payload list in TREQ pkt
   ot_payload* treq_payload_head = treq_pkt->payload;
@@ -414,7 +790,7 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   treq_payload_head = ot_payload_append(treq_payload_head, pl_cli_mac_payload);
 
   // Serialize TREQ pkt
-  printf("[treq send] serializing pkt... ")
+  printf("[treq test] serializing pkt... ");
   ssize_t bytes_serialized = 0;
   uint8_t buf[2048] = {0xff}; //<< pre-set with 0xFF terminator
   if ( (bytes_serialized = ot_pkt_serialize(treq_pkt, buf, sizeof buf)) < 0) 
@@ -439,7 +815,7 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   serv_addr.sin_port = htons(PORT);
   serv_addr.sin_addr.s_addr = SRV_IP;
 
-  printf("[treq send] attempting to connect to server... ");
+  printf("[treq test] attempting to connect to server... ");
   if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
     printf("FAILED\n");
     ++tests_failed;
@@ -447,7 +823,7 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   } else printf("SUCCESS\n");
 
   // Send the serialized TREQ to server
-  printf("[treq send] sending bytes to server... ");
+  printf("[treq test] sending bytes to server... ");
   send(sockfd, buf, bytes_serialized, 0);
   // Wait for reply
   if (read(sockfd, buf, sizeof buf) < 0) 
@@ -460,7 +836,7 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
 
   // Finally, deserialize reply
   printf("[treq reply] deserializing reply... ");
-  if (ot_pkt_deserialize(reply_pkt, buf, sizeof buf) < 0) 
+  if (ot_pkt_deserialize(*reply_pkt, buf, sizeof buf) < 0) 
   {
     printf("FAILED\n");
     ++tests_failed;
@@ -468,7 +844,7 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   } else printf("SUCCESS\n");
 
   // Free the pkt we used for sending the TREQ
-  pkt_destroy(&treq_pkt);
+  ot_pkt_destroy(&treq_pkt);
 
   close(sockfd);
 
@@ -489,50 +865,50 @@ static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   uint8_t pl_state_value = (uint8_t)TREN; 
   uint8_t pl_state_vlen = (uint8_t)sizeof(pl_state_value);
 
-  ot_payload* pl_state_payload = ot_payload_create(pl_state_type, pl_state_value, pl_state_vlen);
+  ot_payload* pl_state_payload = ot_payload_create(pl_state_type, &pl_state_value, pl_state_vlen);
 
 
   // Specify TREN srv_ip payload 
-  ot_payload_type_t pl_srv_ip_type = PL_SRV_IP;
+  ot_pkt_msgtype_t pl_srv_ip_type = PL_SRV_IP;
   uint32_t pl_srv_ip_value = SRV_IP;
-  uint8_t pl_srv_ip_vlen = (uint8_t)sizeof(pl_cli_ip_value);
+  uint8_t pl_srv_ip_vlen = (uint8_t)sizeof(pl_srv_ip_value);
 
-  ot_payload* pl_srv_ip_payload = ot_payload_create(pl_srv_ip_type, pl_srv_ip_value, pl_srv_ip_vlen);
+  ot_payload* pl_srv_ip_payload = ot_payload_create(pl_srv_ip_type, &pl_srv_ip_value, pl_srv_ip_vlen);
 
 
   // Specify TREN cli_ip payload 
-  ot_payload_type_t pl_cli_ip_type = PL_CLI_IP;
+  ot_pkt_msgtype_t pl_cli_ip_type = PL_CLI_IP;
   uint32_t pl_cli_ip_value = CLI_IP;
   uint8_t pl_cli_ip_vlen = (uint8_t)sizeof(pl_cli_ip_value);
 
-  ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_type, pl_cli_ip_value, pl_cli_ip_vlen);
+  ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_type, &pl_cli_ip_value, pl_cli_ip_vlen);
 
   
   // Specify TREN exp_time payload 
-  ot_payload_type_t pl_exp_time_type = PL_ETIME;
+  ot_pkt_msgtype_t pl_exp_time_type = PL_ETIME;
   uint32_t pl_exp_time_value = 86400;
   uint8_t pl_exp_time_vlen = (uint8_t)sizeof(pl_exp_time_value);
 
-  ot_payload* pl_exp_time_payload = ot_payload_create(pl_exp_time_type, pl_exp_time_value, pl_exp_time_vlen);
+  ot_payload* pl_exp_time_payload = ot_payload_create(pl_exp_time_type, &pl_exp_time_value, pl_exp_time_vlen);
   
 
   // Specify TREN renew_time payload 
-  ot_payload_type_t pl_renew_time_type = PL_RTIME;
+  ot_pkt_msgtype_t pl_renew_time_type = PL_RTIME;
   uint32_t pl_renew_time_value = 86400 * 0.75;
   uint8_t pl_renew_time_vlen = (uint8_t)sizeof(pl_renew_time_value);
 
-  ot_payload* pl_renew_time_payload = ot_payload_create(pl_renew_time_type, pl_renew_time_value, pl_renew_time_vlen);
+  ot_payload* pl_renew_time_payload = ot_payload_create(pl_renew_time_type, &pl_renew_time_value, pl_renew_time_vlen);
 
 
   // Create payload list in TREN pkt
-  ot_payload* tren_payload_head = treq_pkt->payload;
+  ot_payload* tren_payload_head = tren_pkt->payload;
   tren_payload_head = ot_payload_append(tren_payload_head, pl_srv_ip_payload);
   tren_payload_head = ot_payload_append(tren_payload_head, pl_cli_ip_payload);
   tren_payload_head = ot_payload_append(tren_payload_head, pl_exp_time_payload);
   tren_payload_head = ot_payload_append(tren_payload_head, pl_renew_time_payload);
 
   // Serialize TREN pkt
-  printf("[tren send] serializing pkt... ")
+  printf("[tren send] serializing pkt... ");
   ssize_t bytes_serialized = 0;
   uint8_t buf[2048] = {0xff}; //<< pre-set with 0xFF terminator
   if ( (bytes_serialized = ot_pkt_serialize(tren_pkt, buf, sizeof buf)) < 0) 
@@ -578,7 +954,7 @@ static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
 
   // Finally, deserialize reply
   printf("[tren reply] deserializing reply... ");
-  if (ot_pkt_deserialize(reply_pkt, buf, sizeof buf) < 0) 
+  if (ot_pkt_deserialize(*reply_pkt, buf, sizeof buf) < 0) 
   {
     printf("FAILED\n");
     ++tests_failed;
@@ -586,7 +962,7 @@ static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   } else printf("SUCCESS\n");
 
   // Free the pkt we used for sending the TREN pkt
-  pkt_destroy(&tren_pkt);
+  ot_pkt_destroy(&tren_pkt);
 
   close(sockfd);
 
@@ -607,28 +983,28 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
   uint8_t pl_state_value = (uint8_t)CPULL; 
   uint8_t pl_state_vlen = (uint8_t)sizeof(pl_state_value);
 
-  ot_payload* pl_state_payload = ot_payload_create(pl_state_type, pl_state_value, pl_state_vlen);
+  ot_payload* pl_state_payload = ot_payload_create(pl_state_type, &pl_state_value, pl_state_vlen);
 
 
   // Specify CPULL srv_ip payload 
-  ot_payload_type_t pl_srv_ip_type = PL_SRV_IP;
+  ot_pkt_msgtype_t pl_srv_ip_type = PL_SRV_IP;
   uint32_t pl_srv_ip_value = SRV_IP;
-  uint8_t pl_srv_ip_vlen = (uint8_t)sizeof(pl_cli_ip_value);
+  uint8_t pl_srv_ip_vlen = (uint8_t)sizeof(pl_srv_ip_value);
 
-  ot_payload* pl_srv_ip_payload = ot_payload_create(pl_srv_ip_type, pl_srv_ip_value, pl_srv_ip_vlen);
+  ot_payload* pl_srv_ip_payload = ot_payload_create(pl_srv_ip_type, &pl_srv_ip_value, pl_srv_ip_vlen);
 
 
   // Specify TREN cli_ip payload 
-  ot_payload_type_t pl_cli_ip_type = PL_CLI_IP;
+  ot_pkt_msgtype_t pl_cli_ip_type = PL_CLI_IP;
   uint32_t pl_cli_ip_value = CLI_IP;
   uint8_t pl_cli_ip_vlen = (uint8_t)sizeof(pl_cli_ip_value);
 
-  ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_type, pl_cli_ip_value, pl_cli_ip_vlen);
+  ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_type, &pl_cli_ip_value, pl_cli_ip_vlen);
 
   
   // Specify CPULL uname payload 
-  ot_payload_type_t pl_uname_type = PL_UNAME;
-  char* pl_uname_value = UNAME;
+  ot_pkt_msgtype_t pl_uname_type = PL_UNAME;
+  char* pl_uname_value = (char*)uname;
   uint8_t pl_uname_vlen = (uint8_t)strlen(pl_uname_value)+1;
 
   ot_payload* pl_uname_payload = ot_payload_create(pl_uname_type, pl_uname_value, pl_uname_vlen);
@@ -642,7 +1018,7 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
   cpull_payload_head = ot_payload_append(cpull_payload_head, pl_uname_payload);
 
   // Serialize CPULL pkt
-  printf("[cpull send] serializing pkt... ")
+  printf("[cpull send] serializing pkt... ");
   ssize_t bytes_serialized = 0;
   uint8_t buf[2048] = {0xff}; //<< pre-set with 0xFF terminator
   if ( (bytes_serialized = ot_pkt_serialize(cpull_pkt, buf, sizeof buf)) < 0) 
@@ -688,7 +1064,7 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
 
   // Finally, deserialize reply
   printf("[cpull reply] deserializing reply... ");
-  if (ot_pkt_deserialize(reply_pkt, buf, sizeof buf) < 0) 
+  if (ot_pkt_deserialize(*reply_pkt, buf, sizeof buf) < 0) 
   {
     printf("FAILED\n");
     ++tests_failed;
@@ -696,7 +1072,7 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
   } else printf("SUCCESS\n");
 
   // Free the pkt we used for sending the CPULL pkt
-  pkt_destroy(&tren_pkt);
+  ot_pkt_destroy(&cpull_pkt);
 
   close(sockfd);
 
