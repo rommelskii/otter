@@ -41,7 +41,9 @@ typedef enum {
   PL_CLI_IP,
   PL_CLI_MAC,
   PL_ETIME,
-  PL_RTIME
+  PL_RTIME,
+  PL_UNAME,
+  PL_PSK
 } ot_pkt_msgtype_t;
 
 // Creates a Otter packet header
