@@ -17,7 +17,7 @@ static void ot_payload_destroy(ot_payload** pp);
 /**
   * Public implementations
   */
-ot_pkt_header ot_pkt_header_create(uint32_t srv_ip, uint32_t cli_ip, uint8_t* srv_mac, uint8_t* cli_mac, uint64_t exp_time, uint64_t renew_time)
+ot_pkt_header ot_pkt_header_create(uint32_t srv_ip, uint32_t cli_ip, uint8_t* srv_mac, uint8_t* cli_mac, uint32_t exp_time, uint32_t renew_time)
 {
   ot_pkt_header res;
   
@@ -86,28 +86,6 @@ ot_payload* ot_payload_append(ot_payload* head, ot_payload* add)
   return head;
 }
 
-/*
-#pragma pack(push, 1)
-typedef struct ot_pkt_header
-{
-  uint32_t  srv_ip;
-  uint32_t  cli_ip;
-  uint8_t   srv_mac[6];
-  uint8_t   cli_mac[6];
-  uint64_t  exp_time;
-  uint64_t  renew_time;
-} ot_pkt_header;
-#pragma pack(pop)
-
-// Singly-linked list for payload entries in an Otter packet
-typedef struct ot_payload
-{
-  uint8_t                     type; 
-  void*                       value;
-  uint8_t                     vlen;
-  struct ot_payload*          next;
-} ot_payload;
- */
 
 ssize_t ot_pkt_serialize(struct ot_pkt* pkt, uint8_t* buf, size_t buflen)
 {
@@ -302,4 +280,25 @@ static void ot_payload_destroy(ot_payload** pp)
   *pp = NULL;
 
   return;
+}
+
+static const char* msgtype_to_str_ret(ot_pkt_msg_type msgtype) 
+{
+  switch(msgtype)
+  {
+    case PL_STATE: return "PL_STATE"; break;
+    case PL_SRV_IP: return "PL_SRV_IP"; break;
+    case PL_SRV_MAC: return "PL_SRV_MAC"; break;
+    case PL_CLI_IP: return "PL_CLI_IP"; break;
+    case PL_CLI_MAC: return "PL_CLI_MAC"; break;
+  }
+
+  return "PL_UNKN";
+}
+
+void msgtype_to_str(ot_pkt_msgtype_t msgtype, char* str_msgtype)
+{
+  if (str_msgtype == NULL) return;
+  
+  str_msgtype = msgtype_to_str_ret(msgtype);
 }
