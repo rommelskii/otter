@@ -36,8 +36,10 @@ typedef struct ot_pkt
 
 typedef enum {
   PL_STATE,
-  PL_IP,
-  PL_MAC,
+  PL_SRC_IP,
+  PL_SRC_MAC,
+  PL_CLI_IP,
+  PL_CLI_MAC,
   PL_ETIME,
   PL_RTIME
 } ot_pkt_msgtype_t
