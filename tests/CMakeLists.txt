@@ -1,4 +1,4 @@
-set(TEST_SRC_LIST test_srv.c test_pkt.c)
+set(TEST_SRC_LIST test_srv_runtime.c test_srv.c test_pkt.c)
 
 include_directories(include)
 
