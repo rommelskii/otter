@@ -51,20 +51,25 @@ int tests_failed = 0;
 #define CLI_REQ_DELAY 3 
 
 /**
+ * PRIVATE TEST SUITE FUNCTIONS
+ */
+static int test_cli_listen(const int PORT, uint8_t* buf, size_t buflen);
+
+/**
 * PRIVATE TEST FIXTURE FUNCTIONS
 */
 // Normal client behavior
-static int test_treq_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
-static int test_tren_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
-static int test_cpull_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_treq_recv(ot_pkt** recv_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_tren_recv(ot_pkt** recv_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_cpull_recv(ot_pkt** recv_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
 
 // Expired client behavior
-static int test_expired_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
-static int test_expired_cpull_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_expired_tren_recv(ot_pkt** recv_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_expired_cpull_recv(ot_pkt** recv_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
 
 // Error-handling behavior
-static int test_invalid_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
-static int test_invalid_cpull_recv(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_invalid_tren_recv(ot_pkt** recv_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_invalid_cpull_recv(ot_pkt** recv_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -154,37 +159,37 @@ int test_treq(ot_srv_ctx** ctable, const int PORT, const uint32_t SRV_IP, const 
   return 0;
 }
 
-int test_tren(ot_srv_ctx** ctable, const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
+int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 {
   assert("test_tren: not yet implemented" && false);
   return 0;
 }
 
-int test_cpull(ot_srv_ctx** ctable, const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
+int test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 {
   assert("test_cpull: not yet implemented" && false);
   return 0;
 }
 
-int test_expired_tren(ot_srv_ctx** ctable, const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
+int test_expired_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 {
   assert("test_expired_tren: not yet implemented" && false);
   return 0;
 }
 
-int test_expired_cpull(ot_srv_ctx** ctable, const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
+int test_expired_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 {
   assert("test_expired_cpull: not yet implemented" && false);
   return 0;
 }
 
-int test_invalid_tren(ot_srv_ctx** ctable, const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
+int test_invalid_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 {
   assert("test_invalid_tren: not yet implemented" && false);
   return 0;
 }
 
-int test_invalid_cpull(ot_srv_ctx** ctable, const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
+int test_invalid_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 {
   assert("test_invalid_cpull: not yet implemented" && false);
   return 0;
@@ -282,12 +287,94 @@ int main(void)
 }
 
 // Normal client behavior
-static int test_treq_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+static int test_treq_recv(ot_pkt** recv_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
 {
-  assert("test_treq_recv: not yet implemented" && false);
+  int listen_fd, recv_fd;
+  struct sockaddr_in servaddr;
+  int opt=1;
+  int addrlen = sizeof(servaddr);
+  uint8_t buf[2048] = {0xff};
+
+  // Listen to client process 
+  printf("[test treq] listening to client... ");
+  if (test_cli_listen(PORT, buf, sizeof buf) < 0) 
+  {
+    printf("FAILED\n");
+    return -1;
+  } else printf("SUCCESS");
+  
+  // Deserialize recv pkt 
+  printf("[test treq] deserializing recv pkt... ");
+  if (ot_pkt_deserialize(*recv_pkt, buf, sizeof buf) < 0) 
+  {
+    printf("FAILED\n");
+    return -1;    
+  } else printf("SUCCESS\n");
+
   return 0;
 }
 
+static int test_cli_listen(const int PORT, uint8_t* buf, size_t buflen)
+{
+  int listen_fd, recv_fd;
+  struct sockaddr_in servaddr;
+  int opt=1;
+  int addrlen = sizeof(servaddr);
+
+  // Listen to client process 
+  if (test_cli_listen(buf) < 0) 
+  {
+    return -1;
+  } 
+
+  if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+  {
+    perror("socket failed");
+    return -1;
+  }
+
+  if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
+  {
+    perror("setsockopt failed");
+    return -1;
+  }
+
+  servaddr.sin_family = AF_INET;
+  servaddr.sin_port = htons(PORT);
+  servaddr.sin_addr.s_addr = INADDR_ANY;
+
+  if (bind(listen_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
+  {
+    perror("bind failed");
+    return -1;
+  }
+
+  if (listen(listen_fd, 3) < 0) //<< 3 is the maximum for pending packets
+  {
+    perror("listen failed");
+    return -1;
+  }
+
+  printf("[treq recv] Harness running at port %d in all interfaces\n", PORT);
+
+  if ((recv_fd = accept(listen_fd, (struct sockaddr*)&servaddr, (socklen_t*)&addrlen)) < 0) 
+  {
+    perror("accept failed");
+    return -1;
+  }
+
+  ssize_t bytes_received = read(recv_fd, buf, sizeof buf);
+  if (bytes_received < 0)
+  {
+    perror("read failed");
+    return -1;
+  }
+
+  printf("[treq recv] successfully received %zu bytes\n", bytes_received);
+
+  close(recv_fd);
+  close(listen_fd);
+}
 
 static int test_tren_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
 {
