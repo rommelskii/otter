@@ -78,7 +78,79 @@ static int test_invalid_cpull_recv(ot_pkt** reply_pkt, const char* uname, const 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int test_treq(ot_srv_ctx** ctable, const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 {
-  assert("test_treq: not yet implemented" && false);
+  // Receive the reply for a TREQ packet to server
+  uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+  uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
+  printf("[treq test] Performing pre-request preparation... ");
+  ot_pkt* recv_pkt = NULL;
+  if (test_treq_recv(ctable, &recv_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0) 
+  {
+    printf("FAILED\n");
+    return 1;
+  } else printf("SUCCESS\n");
+  
+  printf("---- BEGIN TREQ TESTS ----\n");
+
+  // Header checks
+  EXPECT(recv_pkt != NULL, "[treq test] deserialization non-nullity test");
+
+  ot_pkt_header reply_hd = recv_pkt->header;
+
+  EXPECT(reply_hd.srv_ip == SRV_IP, "[treq recv] srv ip check");
+  EXPECT(memcmp(reply_hd.srv_mac, srv_mac, 6) == 0, "[treq recv] srv mac check");
+
+  EXPECT(reply_hd.cli_ip == CLI_IP, "[treq recv] cli ip check");
+  EXPECT(memcmp(reply_hd.cli_mac, cli_mac, 6) == 0, "[treq recv] cli mac check");
+
+  // Note: these values should be standardized in the entire codebase
+  uint32_t actual_exp_time = 86400;
+  uint32_t actual_renew_time = 86400 * 0.75;
+  EXPECT(reply_hd.exp_time == actual_exp_time, "[treq recv] exp time check");
+  EXPECT(reply_hd.renew_time == actual_renew_time, "[treq recv] renew time check");
+
+  // Build parse table from reply pkt payloads
+  ot_payload* reply_head = recv_pkt->payload;
+  ht* parse_table = ht_create(8);
+  pl_parse_table_build(&parse_table, reply_head);
+
+  // Start payload parsing
+  // Check expected TACK reply with TREQ input
+  printf("[treq recv] checking for PL_STATE entry in parse table... ");
+  ot_cli_state_t* expected_treq = ht_get(parse_table, "PL_STATE");
+  if (expected_treq == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_treq == TREQ, "[treq recv] reply type (TREQ) check");
+
+  // Check expected cli ip from received TREQ pkt
+  uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
+  printf("[treq recv] checking for PL_CLI_IP entry in parse table... ");
+  if (expected_cli_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_cli_ip == CLI_IP, "[treq recv] cli ip check");
+
+  // Check expected cli mac (also the same as the one in the header of the TREQ pkt)
+  uint8_t* expected_cli_mac = ht_get(parse_table, "PL_CLI_MAC");
+  printf("[treq rcev] checking for PL_CLI_MAC entry in parse table... ");
+  if (expected_cli_mac == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(memcmp(expected_cli_mac, cli_mac, 6) == 0, "[treq recv] cli mac check");
+
+  printf("---- END TREQ TESTS ----\n");
+
+  // Perform cleanup
+  ot_pkt_destroy(&recv_pkt);
   return 0;
 }
 
@@ -210,15 +282,48 @@ int main(void)
 }
 
 // Normal client behavior
-static int test_treq_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
-static int test_tren_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
-static int test_cpull_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_treq_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_treq_recv: not yet implemented" && false);
+  return 0;
+}
+
+
+static int test_tren_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_tren_recv: not yet implemented" && false);
+  return 0;
+}
+
+static int test_cpull_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_cpull_recv: not yet implemented" && false);
+  return 0;
+}
 
 // Expired client behavior
-static int test_expired_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
-static int test_expired_cpull_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_expired_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_expired_tren_recv: not yet implemented" && false);
+  return 0;
+}
+
+static int test_expired_cpull_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_expired_cpull_recv: not yet implemented" && false);
+  return 0;
+}
 
 // Error-handling behavior
-static int test_invalid_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
-static int test_invalid_cpull_recv(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_invalid_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_invalid_tren_recv: not yet implemented" && false);
+  return 0;
+}
+
+static int test_invalid_cpull_recv(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_invalid_cpull_recv: not yet implemented" && false);
+  return 0;
+}
 
