@@ -704,10 +704,11 @@ int main(void)
 
   if (pid == 0)
   {
-//  int srv_res = ot_srv_run(PORT, SRV_IP); //<< uncomment this after compiling for syntax errors
+    ot_srv_run(); //<< uncomment this after compiling for syntax errors
     printf("Running server...\n");
     exit(0);
   } else {
+    sleep(2);
     // Valid tests
     test_treq(PORT, SRV_IP, CLI_IP);
     test_tren(PORT, SRV_IP, CLI_IP);
