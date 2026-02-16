@@ -81,14 +81,14 @@ static int test_invalid_cpull_recv(ot_pkt** recv_pkt, const char* uname, const i
 //// contains a msgtype payload of TREQ with its contents being the cli_ip and cli_mac payloads.
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-int test_treq(ot_srv_ctx** ctable, const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
+int test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 {
   // Receive the reply for a TREQ packet to server
   uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
   uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
   printf("[treq test] Performing pre-request preparation... ");
   ot_pkt* recv_pkt = NULL;
-  if (test_treq_recv(ctable, &recv_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0) 
+  if (test_treq_recv(&recv_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0) 
   {
     printf("FAILED\n");
     return 1;
@@ -256,23 +256,16 @@ int main(void)
   uint32_t  CLI_IP = inet_addr("127.0.0.1");
   uint8_t   CLI_MAC[6] = {0xff,0xee,0xdd,0xcc,0xbb,0xaa};
 
-  // Create testing server context
-  ot_srv_ctx_mdata test_srv_mdata = ot_srv_ctx_mdata_create(PORT, SRV_IP, SRV_MAC);
-  ot_srv_ctx* test_srv_ctable = ot_srv_ctx_create(test_srv_mdata);
-
   // Begin test harnesses
-  test_treq(&test_srv_ctable, PORT, SRV_IP, CLI_IP);
-  test_tren(&test_srv_ctable, PORT, SRV_IP, CLI_IP);
-  test_cpull(&test_srv_ctable, PORT, SRV_IP, CLI_IP);
+  test_treq(PORT, SRV_IP, CLI_IP);
+  test_tren(PORT, SRV_IP, CLI_IP);
+  test_cpull(PORT, SRV_IP, CLI_IP);
 
-  test_expired_tren(&test_srv_ctable, PORT, SRV_IP, CLI_IP);
-  test_expired_cpull(&test_srv_ctable, PORT, SRV_IP, CLI_IP);
+  test_expired_tren(PORT, SRV_IP, CLI_IP);
+  test_expired_cpull(PORT, SRV_IP, CLI_IP);
 
-  test_invalid_tren(&test_srv_ctable, PORT, SRV_IP, CLI_IP);
-  test_invalid_cpull(&test_srv_ctable, PORT, SRV_IP, CLI_IP);
-
-  // Cleanup
-  ot_srv_ctx_destroy(&test_srv_ctable);
+  test_invalid_tren(PORT, SRV_IP, CLI_IP);
+  test_invalid_cpull(PORT, SRV_IP, CLI_IP);
   
   i=0;
   for(; i<NUM_CHILDREN;++i)
@@ -322,7 +315,7 @@ static int test_cli_listen(const int PORT, uint8_t* buf, size_t buflen)
   int addrlen = sizeof(servaddr);
 
   // Listen to client process 
-  if (test_cli_listen(buf) < 0) 
+  if (test_cli_listen(PORT, buf, sizeof buf) < 0) 
   {
     return -1;
   } 
@@ -374,15 +367,17 @@ static int test_cli_listen(const int PORT, uint8_t* buf, size_t buflen)
 
   close(recv_fd);
   close(listen_fd);
+
+  return 0;
 }
 
-static int test_tren_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+static int test_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
 {
   assert("test_tren_recv: not yet implemented" && false);
   return 0;
 }
 
-static int test_cpull_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+static int test_cpull_recv(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
 {
   assert("test_cpull_recv: not yet implemented" && false);
   return 0;
@@ -395,7 +390,7 @@ static int test_expired_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t S
   return 0;
 }
 
-static int test_expired_cpull_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+static int test_expired_cpull_recv(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
 {
   assert("test_expired_cpull_recv: not yet implemented" && false);
   return 0;
