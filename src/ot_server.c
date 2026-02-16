@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "ht.h"
-
 
 /**
  * Private method wrappers for ht API
@@ -137,8 +137,8 @@ void ot_srv_ctx_destroy(ot_srv_ctx** os)
 
 // Runs the server loop
 void ot_srv_run() 
-{
-  
+{ 
+  sleep(2);
   return;
 }
 
