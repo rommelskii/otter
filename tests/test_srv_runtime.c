@@ -104,6 +104,9 @@ int main(void)
   return 0;
 }
 
+////////////////////////////////////////////////////START OF TEST HARNESSES/////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////START OF TEST HARNESSES/////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////START OF TEST HARNESSES/////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -194,6 +197,7 @@ int test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
   ot_pkt_destroy(&reply_pkt);
   return 0;
 }
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -751,6 +755,100 @@ int test_invalid_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
 }
 
 
+// NOTE FOR UNKNOWN CLIENT TESTS !!
+// These harnesses are just the invalid tests but with no TACK/TREQ handshakes
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// TEST HARNESS: test_unknown_tren 
+////
+//// Tests whether the server can respond with a TINV to a TREQ from an unknown client 
+//// 
+//// Utilizes re-used logic from test_invalid_tren but NOT PERFORM THE TREQ/TACK HANDSHAKE
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int test_unknown_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
+{
+  uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+  uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
+
+  // No TREQ/TACK handshake here...
+  
+  printf("---- BEGIN UNKNOWN CLIENT TREN TESTS ----\n");
+
+  ot_pkt* reply_pkt = NULL;
+
+  // Send a TREN request to server and deserialize reply pkt 
+  test_tren_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac); //<< we now use the debug cli mac
+
+  // Build parse table from possible TINV reply pkt payloads
+  ot_payload* reply_head = reply_pkt->payload;
+  ht* parse_table = ht_create(8);
+  pl_parse_table_build(&parse_table, reply_head);
+
+  // Start payload parsing
+  
+  // Check expected TINV reply with TREN input
+  printf("[unknown tren reply] checking for PL_STATE entry in parse table... ");
+  ot_cli_state_t* expected_tinv = ht_get(parse_table, "PL_STATE");
+  if (expected_tinv == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_tinv == TINV, "[unknown tren reply] reply type (TINV) check");
+
+  // Check expected srv ip (should be same as the one sent in the header of the expired TREN pkt)
+  uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
+  printf("[unknown tren reply] checking for PL_SRV_IP entry in parse table... ");
+  if (expected_srv_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_srv_ip == SRV_IP, "[unknown tren reply] srv ip check");
+  
+  // Check expected cli ip (should be same as the one sent in the header of the expired TREN pkt)
+  uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
+  printf("[unknown tren reply] checking for PL_CLI_IP entry in parse table... ");
+  if (expected_srv_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_cli_ip == CLI_IP, "[unknown tren reply] cli ip check");
+
+  printf("---- END UNKNOWN TREN TESTS ----\n");
+
+  // Finally clean up reply pkt used for receiving the TINV pkt
+  ot_pkt_destroy(&reply_pkt);
+
+  return 0;
+
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// TEST HARNESS: test_unknown_cpull
+////
+//// Tests whether the server can respond with a CINV to a CPULL from an unknown client 
+//// 
+//// Utilizes re-used logic from test_invalid_cpull and NOT PERFORM THE TREQ/TACK HANDSHAKE
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int test_unknown_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
+{
+  assert("[test_unknown_cpull] not yet implemented" && false);
+  return 0;
+}
+
+////////////////////////////////////////////////////END OF TEST HARNESSES/////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////END OF TEST HARNESSES/////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////END OF TEST HARNESSES/////////////////////////////////////////////////////////////
+
 static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac) 
 {
   // Build TREQ header 
@@ -1084,14 +1182,3 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
   return 0;
 }
 
-int test_unknown_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
-{
-  assert("[test_unknown_tren] not yet implemented" && false);
-  return 0;
-}
-
-int test_unknown_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
-{
-  assert("[test_unknown_cpull] not yet implemented" && false);
-  return 0;
-}
