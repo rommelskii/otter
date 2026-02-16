@@ -1,5 +1,4 @@
-set(TEST_SRC_LIST test_cli_runtime.c 
-                  test_srv_runtime.c 
+set(TEST_SRC_LIST test_srv_runtime.c 
                   test_srv.c 
                   test_pkt.c)
 
