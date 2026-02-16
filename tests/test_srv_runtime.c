@@ -841,8 +841,79 @@ int test_unknown_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int test_unknown_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
 {
-  assert("[test_unknown_cpull] not yet implemented" && false);
+  uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+  uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
+  const char* UNAME = "ThisUsernameWouldntPassAnyway";
+
+  // No TACK/TREQ handshake
+
+  printf("---- BEGIN UNKNOWN CPULL TESTS ----\n");
+
+  // Send a CPULL request to server and deserialize reply pkt 
+  ot_pkt* reply_pkt = NULL;
+
+  test_cpull_send(&reply_pkt, UNAME, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac); //<< dont forget to indicate UNAME for CPULL pkts
+
+  // Build parse table from possible CINV reply pkt payloads
+  ot_payload* reply_head = reply_pkt->payload;
+  ht* parse_table = ht_create(8);
+  pl_parse_table_build(&parse_table, reply_head);
+
+  // Start payload parsing
+
+  // Check expected CINV reply with CPULL input
+  printf("[unknown cpull reply] checking for PL_STATE entry in parse table... ");
+  ot_cli_state_t* expected_cinv = ht_get(parse_table, "PL_STATE");
+  if (expected_cinv == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_cinv == CINV, "[unknown cpull reply] reply type (CINV) check");
+
+
+  // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
+  uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
+  printf("[unknown cpull reply] checking for PL_SRV_IP entry in parse table... ");
+  if (expected_srv_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_srv_ip == SRV_IP, "[unknown cpull reply] srv ip check");
+
+  // Check expected cli ip (should be same as the one sent in the header of the CPULL pkt)
+  uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
+  printf("[unknown cpull reply] checking for PL_CLI_IP entry in parse table... ");
+  if (expected_cli_ip == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(*expected_cli_ip == CLI_IP, "[unknown cpull reply] cli ip check");
+
+
+  // Check expected uname
+  const char* expected_uname = ht_get(parse_table, "PL_UNAME");
+  printf("[unknown cpull reply] checking for PL_UNAME entry in parse table... ");
+  if (expected_uname == NULL)
+  {
+    printf("FAILED\n");
+    ++tests_failed;
+    return -1;
+  } else printf("SUCCESS\n");
+  EXPECT(strcmp(expected_uname, UNAME) == 0, "[unknown cpull reply] uname check");
+
+  printf("---- END UNKNOWN CPULL TESTS ----\n");
+
+  // Finally clean up reply pkt used for receiving the TPRV pkt
+  ot_pkt_destroy(&reply_pkt);
+
   return 0;
+
 }
 
 ////////////////////////////////////////////////////END OF TEST HARNESSES/////////////////////////////////////////////////////////////
