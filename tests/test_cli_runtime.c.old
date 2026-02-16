@@ -1,0 +1,291 @@
+/* Created by Rommel John H. Ronduen (rommel.ronduen2244@gmail.com)
+*
+* file: test_cli_runtime.c
+*
+* Contains the test suite for testing the client runtime and the contents of inbound TREQ, TREN, and CPULL requests and its
+* invalid and expired cases.
+*
+* A single client process simulates a full TREQ/TACK handshake, CPULL/CPUSH interaction, a TREN request, and finally an expiry test with
+* a test CPULL. The test harnesses are timed to receive each part of the communication between the client.
+*/
+
+#include "ot_server.h"
+#include "testing_utils.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <assert.h>
+#include <signal.h>
+
+int tests_failed = 0;
+
+static ssize_t test_cli_accept(char* buf, size_t buflen, int* recv_fd, struct sockaddr_in* servaddr, socklen_t* addrlen);
+
+int main(void) 
+{
+  // Create child processes
+  pid_t pids[NUM_CHILDREN+1];
+
+  assert("[test cli runtime] implement all functions first" && false);
+
+  pid_t pid = fork();
+
+  if (pid<0) 
+  {
+    perror("fork failed");
+    return 1;
+  } else if (pid == 0)  
+  {
+    ot_cli_run();
+    wait(NULL);
+  } else {
+
+  }
+
+  // Environment variables
+  const int PORT = 7192;
+  uint32_t  SRV_IP = inet_addr("127.0.0.1");
+  uint8_t   SRV_MAC[6] = {0xaa,0xbb,0xcc,0xdd,0xee,0xff};
+  uint32_t  CLI_IP = inet_addr("127.0.0.1");
+  uint8_t   CLI_MAC[6] = {0xff,0xee,0xdd,0xcc,0xbb,0xaa};
+
+  // Server stuff
+  int listen_fd, recv_fd;
+  struct sockaddr_in servaddr;
+  int opt=1;
+  int addrlen = sizeof(servaddr);
+  uint8_t buf[2048] = {0xff};
+
+  // Listen to client process 
+  int listen_fd, recv_fd;
+  struct sockaddr_in servaddr;
+  int opt=1;
+  int addrlen = sizeof(servaddr);
+
+  if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+  {
+    perror("socket failed");
+    return -1;
+  }
+
+  if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
+  {
+    perror("setsockopt failed");
+    return -1;
+  }
+
+  servaddr.sin_family = AF_INET;
+  servaddr.sin_port = htons(PORT);
+  servaddr.sin_addr.s_addr = INADDR_ANY;
+
+  if (bind(listen_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
+  {
+    perror("bind failed");
+    return -1;
+  }
+
+  if (listen(listen_fd, 3) < 0) //<< 3 is the maximum for pending packets
+  {
+    perror("listen failed");
+    return -1;
+  }
+
+  printf("[treq recv] Harness running at port %d in all interfaces\n", PORT);
+
+  int bytes_received;
+  ot_pkt* recv_pkt = NULL;
+
+  ///////////////////////////////////////////////
+  // Accept TREQ first
+  ///////////////////////////////////////////////
+  bytes_received = test_cli_accept(buf, sizeof buf, &recv_fd, &servaddr, &addrlen);
+
+  printf("[treq recv] successfully received %zu bytes\n", bytes_received);
+
+  test_treq_check(buf, sizeof buf); //<< also include deserialization
+
+  close(recv_fd);
+
+  ///////////////////////////////////////////////
+  // Accept CPULL 
+  ///////////////////////////////////////////////
+  bytes_received = test_cli_accept(buf, sizeof buf, &recv_fd, &servaddr, &addrlen);
+
+  printf("[cpull recv] successfully received %zu bytes\n", bytes_received);
+
+  test_cpull_check(buf, sizeof buf);
+
+  close(recv_fd);
+
+  ///////////////////////////////////////////////
+  // Accept TREN
+  ///////////////////////////////////////////////
+
+  printf("[tren recv] waiting for TREN ");
+  sleep(5)
+
+  bytes_received = test_cli_accept(buf, sizeof buf, &recv_fd, &servaddr, &addrlen);
+
+  printf("[tren recv] successfully received %zu bytes\n", bytes_received);
+
+  test_tren_check(buf, sizeof buf);
+
+  close(recv_fd);
+
+  return 0;
+
+ }
+
+  if (tests_failed > 0) return 1;
+
+  return 0;
+}
+
+// Normal client behavior
+static int test_treq_recv(ot_pkt** recv_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  int listen_fd, recv_fd;
+  struct sockaddr_in servaddr;
+  int opt=1;
+  int addrlen = sizeof(servaddr);
+  uint8_t buf[2048] = {0xff};
+
+  // Listen to client process 
+  printf("[test treq] listening to client... ");
+  if (test_cli_listen(PORT, buf, sizeof buf) < 0) 
+  {
+    printf("FAILED\n");
+    return -1;
+  } else printf("SUCCESS");
+  
+  // Deserialize recv pkt 
+  printf("[test treq] deserializing recv pkt... ");
+  if (ot_pkt_deserialize(*recv_pkt, buf, sizeof buf) < 0) 
+  {
+    printf("FAILED\n");
+    return -1;    
+  } else printf("SUCCESS\n");
+
+  return 0;
+}
+
+static int test_cli_listen(const int PORT, uint8_t* buf, size_t buflen)
+{
+  int listen_fd, recv_fd;
+  struct sockaddr_in servaddr;
+  int opt=1;
+  int addrlen = sizeof(servaddr);
+
+  if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+  {
+    perror("socket failed");
+    return -1;
+  }
+
+  if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
+  {
+    perror("setsockopt failed");
+    return -1;
+  }
+
+  servaddr.sin_family = AF_INET;
+  servaddr.sin_port = htons(PORT);
+  servaddr.sin_addr.s_addr = INADDR_ANY;
+
+  if (bind(listen_fd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
+  {
+    perror("bind failed");
+    return -1;
+  }
+
+  if (listen(listen_fd, 3) < 0) //<< 3 is the maximum for pending packets
+  {
+    perror("listen failed");
+    return -1;
+  }
+
+  printf("[treq recv] Harness running at port %d in all interfaces\n", PORT);
+
+  if ((recv_fd = accept(listen_fd, (struct sockaddr*)&servaddr, (socklen_t*)&addrlen)) < 0) 
+  {
+    perror("accept failed");
+    return -1;
+  }
+
+  ssize_t bytes_received = read(recv_fd, buf, sizeof buf);
+  if (bytes_received < 0)
+  {
+    perror("read failed");
+    return -1;
+  }
+
+  printf("[treq recv] successfully received %zu bytes\n", bytes_received);
+
+  close(recv_fd);
+  close(listen_fd);
+
+  return 0;
+}
+
+static int test_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_tren_recv: not yet implemented" && false);
+  return 0;
+}
+
+static int test_cpull_recv(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_cpull_recv: not yet implemented" && false);
+  return 0;
+}
+
+// Expired client behavior
+static int test_expired_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_expired_tren_recv: not yet implemented" && false);
+  return 0;
+}
+
+static int test_expired_cpull_recv(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_expired_cpull_recv: not yet implemented" && false);
+  return 0;
+}
+
+// Error-handling behavior
+static int test_invalid_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_invalid_tren_recv: not yet implemented" && false);
+  return 0;
+}
+
+static int test_invalid_cpull_recv(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
+{
+  assert("test_invalid_cpull_recv: not yet implemented" && false);
+  return 0;
+}
+
+static ssize_t test_cli_accept(char* buf, size_t buflen, int* recv_fd, struct sockaddr_in* servaddr, socklen_t* addrlen)
+{
+  if ((recv_fd = accept(listen_fd, (struct sockaddr*)&servaddr, (socklen_t*)&addrlen)) < 0) 
+  {
+    perror("accept failed");
+    return -1;
+  }
+
+  ssize_t bytes_received = read(*recv_fd, buf, sizeof buf);
+  if (bytes_received < 0)
+  {
+    perror("read failed");
+    return -1;
+  }
+
+  return bytes_received;
+}

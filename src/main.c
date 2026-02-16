@@ -17,9 +17,12 @@
 #include <string.h>
 #include <stdbool.h>
 #include <assert.h> // Required for assert
+//
+#include <arpa/inet.h>
 
 #include "ht.h" // for creating the credential table
 #include "otfile_utils.h" // for otfile_build
+#include "ot_packet.h" // for ot pkt stuff
 
 int main(int argc, char** argv) 
 {
