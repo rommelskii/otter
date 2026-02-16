@@ -18,6 +18,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
+#include <assert.h>
 
 int tests_failed = 0;
 
@@ -89,6 +90,10 @@ int main(void)
     // Expired client tests
     test_expired_tren(PORT, SRV_IP, CLI_IP);
     test_expired_cpull(PORT, SRV_IP, CLI_IP);
+
+    // Unknown client tests
+    test_unknown_tren(PORT, SRV_IP, CLI_IP);
+    test_unknown_cpull(PORT, SRV_IP, CLI_IP);
 
     wait(NULL);
     printf("Child process for client has stopped\n");
@@ -1076,5 +1081,17 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
 
   close(sockfd);
 
+  return 0;
+}
+
+int test_unknown_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
+{
+  assert("[test_unknown_tren] not yet implemented" && false);
+  return 0;
+}
+
+int test_unknown_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
+{
+  assert("[test_unknown_cpull] not yet implemented" && false);
   return 0;
 }
