@@ -1,6 +1,8 @@
 #ifndef OT_PACKET_H
 #define OT_PACKET_H
 
+#include "ht.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -76,5 +78,7 @@ void bytes_to_macstr(uint8_t* macbytes, char* macstr);
 
 // Converts a msgtype to a string
 void msgtype_to_str(ot_pkt_msgtype_t msgtype, char* str_msgtype);
+
+void pl_parse_table_build(ht** pt, ot_payload* pl_head); //<< could be implemented in ot packet library
 
 #endif //OT_PACKET_H

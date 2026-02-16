@@ -309,3 +309,18 @@ void msgtype_to_str(ot_pkt_msgtype_t msgtype, char* str_msgtype)
   str_msgtype = (char*)msgtype_to_str_ret(msgtype);
 }
 
+void pl_parse_table_build(ht** pt, ot_payload* pl_head)
+{
+  ot_payload* oti = pl_head;
+  for(; oti!=NULL; oti=oti->next) 
+  {
+    ot_pkt_msgtype_t msgtype = (ot_pkt_msgtype_t)oti->type; //<< this will be converted to a string
+    char msgtype_str[16];
+    msgtype_to_str(msgtype, msgtype_str);
+
+    void* value = oti->value;
+    uint8_t vlen = oti->vlen;
+
+    ht_set(pt, msgtype_str, value, (size_t)vlen);
+  }
+}
