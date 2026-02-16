@@ -21,6 +21,21 @@
 
 int tests_failed = 0;
 
+/**
+* TEST HARNESSES
+*/
+int test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP);
+int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP);
+int test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP);
+
+int test_expired_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP);
+int test_expired_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP);
+
+int test_invalid_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP);
+int test_invalid_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP);
+
+int test_unknown_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP);
+int test_unknown_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP);
 
 /**
 * PRIVATE TEST FIXTURE FUNCTIONS
@@ -37,6 +52,53 @@ static int test_expired_cpull_send(ot_pkt** reply_pkt, const char* uname, const 
 // Error-handling behavior
 static int test_invalid_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
 static int test_invalid_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+
+
+// MAIN ENTRYPOINT
+int main(void) 
+{
+  pid_t pid = fork();  
+  
+  if (pid < 0) 
+  {
+    perror("fork failed");
+    ++tests_failed;
+    return 1;
+  }
+
+  const int PORT = 7192;
+  const uint32_t SRV_IP = inet_addr("127.0.0.1");
+  const uint32_t CLI_IP = inet_addr("127.0.0.1");
+
+  if (pid == 0)
+  {
+    ot_srv_run(); //<< uncomment this after compiling for syntax errors
+    printf("Running server...\n");
+    exit(0);
+  } else {
+    sleep(2);
+    // Valid tests
+    test_treq(PORT, SRV_IP, CLI_IP);
+    test_tren(PORT, SRV_IP, CLI_IP);
+    test_cpull(PORT, SRV_IP, CLI_IP);
+
+    // Error-handling tests
+    test_invalid_tren(PORT, SRV_IP, CLI_IP);
+    test_invalid_cpull(PORT, SRV_IP, CLI_IP);
+
+    // Expired client tests
+    test_expired_tren(PORT, SRV_IP, CLI_IP);
+    test_expired_cpull(PORT, SRV_IP, CLI_IP);
+
+    wait(NULL);
+    printf("Child process for client has stopped\n");
+  }
+
+  if (tests_failed > 0) return 1;
+
+  return 0;
+}
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -679,50 +741,6 @@ int test_invalid_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
 
   // Finally clean up reply pkt used for receiving the TPRV pkt
   ot_pkt_destroy(&reply_pkt);
-
-  return 0;
-}
-
-int main(void) 
-{
-  pid_t pid = fork();  
-  
-  if (pid < 0) 
-  {
-    perror("fork failed");
-    ++tests_failed;
-    return 1;
-  }
-
-  const int PORT = 7192;
-  const uint32_t SRV_IP = inet_addr("127.0.0.1");
-  const uint32_t CLI_IP = inet_addr("127.0.0.1");
-
-  if (pid == 0)
-  {
-    ot_srv_run(); //<< uncomment this after compiling for syntax errors
-    printf("Running server...\n");
-    exit(0);
-  } else {
-    sleep(2);
-    // Valid tests
-    test_treq(PORT, SRV_IP, CLI_IP);
-    test_tren(PORT, SRV_IP, CLI_IP);
-    test_cpull(PORT, SRV_IP, CLI_IP);
-
-    // Error-handling tests
-    test_invalid_tren(PORT, SRV_IP, CLI_IP);
-    test_invalid_cpull(PORT, SRV_IP, CLI_IP);
-
-    // Expired client tests
-    test_expired_tren(PORT, SRV_IP, CLI_IP);
-    test_expired_cpull(PORT, SRV_IP, CLI_IP);
-
-    wait(NULL);
-    printf("Child process for client has stopped\n");
-  }
-
-  if (tests_failed > 0) return 1;
 
   return 0;
 }
