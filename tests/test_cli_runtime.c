@@ -51,11 +51,6 @@ int tests_failed = 0;
 #define CLI_REQ_DELAY 3 
 
 /**
-* PROTOTYPE FUNCTIONS
-*/
-static void pl_parse_table_build(ht** pt, ot_payload* pl_head); //<< could be implemented in ot packet library
-
-/**
 * PRIVATE TEST FIXTURE FUNCTIONS
 */
 // Normal client behavior
@@ -213,3 +208,17 @@ int main(void)
 
   return 0;
 }
+
+// Normal client behavior
+static int test_treq_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_tren_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_cpull_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+
+// Expired client behavior
+static int test_expired_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_expired_cpull_recv(ot_srv_ctx** ctable, ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+
+// Error-handling behavior
+static int test_invalid_tren_recv(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+static int test_invalid_cpull_recv(ot_pkt** reply_pkt, const char* uname, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
+
