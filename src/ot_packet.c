@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 
 /**
   * Private prototypes
@@ -307,3 +308,4 @@ void msgtype_to_str(ot_pkt_msgtype_t msgtype, char* str_msgtype)
   
   str_msgtype = (char*)msgtype_to_str_ret(msgtype);
 }
+
