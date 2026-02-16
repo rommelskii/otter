@@ -128,6 +128,8 @@ int main(void)
   // Create child processes
   pid_t pids[NUM_CHILDREN+1];
 
+  assert("[test cli runtime] implement all functions first" && false);
+
   size_t i=0;
   for(; i<NUM_CHILDREN;++i) 
   {
