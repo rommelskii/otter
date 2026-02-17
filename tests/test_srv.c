@@ -12,11 +12,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 int tests_failed = 0;
 
 int main(void) 
 {
+  time_t curr_time;
+  time(&curr_time);
+
   int TEST_PORT = 7192;
 
   uint8_t TEST_BYTES_SRV_MAC[6] = {0xaa,0xbb,0xcc,0xdd,0xee,0xff};
@@ -25,8 +29,11 @@ int main(void)
   const char* TEST_STR_SRV_MAC = "aa:bb:cc:dd:ee:ff";
   const char* TEST_STR_CLI_MAC = "ff:ee:dd:cc:bb:aa";
 
-  uint64_t TEST_EXP_TIME = 1770967837;
-  uint64_t TEST_RENEW_TIME = 1770967837 - 3600;
+  uint64_t TEST_EXP_TIME = 86400;
+  uint64_t TEST_RENEW_TIME = 86400*0.75;
+
+  time_t TEST_CTX_EXP_TIME = curr_time + TEST_EXP_TIME;
+  time_t TEST_CTX_RENEW_TIME = curr_time + TEST_RENEW_TIME;
 
   uint32_t TEST_SRV_IP = inet_addr("192.168.100.1");
   uint32_t TEST_CLI_IP = inet_addr("1.100.168.192");
@@ -38,7 +45,7 @@ int main(void)
 
 
   // Client context creation
-  ot_cli_ctx cli_ctx_res = ot_cli_ctx_create(TEST_HEADER, TEST_STATE);
+  ot_cli_ctx cli_ctx_res = ot_cli_ctx_create(TEST_HEADER, TEST_STATE, TEST_CTX_EXP_TIME, TEST_CTX_RENEW_TIME);
   EXPECT(memcmp(&(cli_ctx_res.header), &TEST_HEADER, sizeof(ot_pkt_header)) == 0, "[cli ctx] header initialization");
   EXPECT(cli_ctx_res.state == TEST_STATE, "[cli ctx] state initialization");
   
