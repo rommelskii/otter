@@ -11,7 +11,7 @@
 #include "ht.h"
 
 #define SRV_PORT 7192
-#define SRV_BUFFER_SIZE 2048
+#define MAX_RECV_SIZE 2048
 
 
 /**
@@ -56,7 +56,7 @@ ot_srv_ctx_mdata ot_srv_ctx_mdata_create(const int PORT, const uint32_t SRV_IP, 
 ot_cli_ctx ot_cli_ctx_create(ot_pkt_header h, ot_cli_state_t s, time_t exp_time, time_t renew_time)
 {
   ot_cli_ctx pcc = {0};
-  
+
   // Proceed to copying values to new and allocated client context
   memcpy(&(pcc.header), &h, sizeof(ot_pkt_header));
   pcc.state = s;
@@ -123,9 +123,9 @@ ot_cli_ctx ot_srv_get_cli_ctx(ot_srv_ctx* sc, const char* macstr)
 void ot_srv_ctx_destroy(ot_srv_ctx** os) 
 {
   if (os == NULL) return;
-  
+
   ot_srv_ctx* osc = *os; 
-  
+
   if (osc->ctable != NULL)
   {
     ht_destroy(osc->ctable);
@@ -147,144 +147,83 @@ void ot_srv_ctx_destroy(ot_srv_ctx** os)
 
 // Runs the server loop
 void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC) 
-{ 
-  time_t current_time;
-
-  int server_fd, new_socket;
+{
+  int server_fd, conn_fd;
   struct sockaddr_in address;
   int opt = 1;
   int addrlen = sizeof(address);
-  uint8_t buffer[SRV_BUFFER_SIZE] = {0};
 
-  // 1. Create socket file descriptor
-  if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-    perror("socket failed");
-    exit(EXIT_FAILURE);
-  }
+  // Buffer for raw bytes
+  uint8_t rx_buffer[MAX_RECV_SIZE];
 
-  // 2. Attach socket to the port 8080 (Forcefully)
-  if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-    perror("setsockopt");
-    exit(EXIT_FAILURE);
-  }
+  // 1. Create and configure socket
+  server_fd = socket(AF_INET, SOCK_STREAM, 0);
+  setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
   address.sin_family = AF_INET;
-  address.sin_addr.s_addr = INADDR_ANY; // Listen on all interfaces
+  address.sin_addr.s_addr = INADDR_ANY;
   address.sin_port = htons(SRV_PORT);
 
-  // 3. Bind the socket to the network address and port
-  if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-    perror("bind failed");
-    exit(EXIT_FAILURE);
-  }
+  // 2. Bind and Listen
+  bind(server_fd, (struct sockaddr *)&address, sizeof(address));
+  listen(server_fd, 5);
 
-  // 4. Start listening for incoming connections
-  if (listen(server_fd, 3) < 0) {
-    perror("listen");
-    exit(EXIT_FAILURE);
-  }
+  printf("[Server] Ready to receive bytes on port %d...\n", SRV_PORT);
 
-  printf("[OTTER SERVER] listening on port %d...\n", SRV_PORT);
+  while (1) {
+    conn_fd = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
+    if (conn_fd < 0) continue;
 
-  // Otter server variables go here
-  ot_srv_ctx_mdata srv_mdata = ot_srv_ctx_mdata_create(SRV_PORT, SRV_IP, SRV_MAC);
-  ot_srv_ctx* srv_ctx = ot_srv_ctx_create(srv_mdata);
+    // 3. Receive Loop
+    // recv returns the number of bytes actually read
+    ssize_t bytes_received = recv(conn_fd, rx_buffer, MAX_RECV_SIZE, 0);
 
-  char ipbuf[INET_ADDRSTRLEN] = {0};
+    if (bytes_received < 0) {
+      perror("recv failed");
+    } else if (bytes_received == 0) {
+      printf("[Server] Client closed connection.\n");
+    } else {
+      printf("[Server] Received %zd bytes:\n", bytes_received);
 
-  while(1) {
-    time(&current_time); //<< fetch current time
+      //Pre-populate the buffer with null terminators after the payload has been set 
+      memset(&rx_buffer[bytes_received], 0xff, sizeof(rx_buffer) - bytes_received);
 
-    // Accept the reply from the client we listened to
-    if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
-      perror("accept");
-      exit(EXIT_FAILURE);
-    }
+      ot_pkt* recv_pkt = ot_pkt_create();
+      ot_pkt_deserialize(recv_pkt, rx_buffer, sizeof rx_buffer);
 
-    // 6. Read data from the client
-    int valread = read(new_socket, buffer, SRV_BUFFER_SIZE);
-    if (valread > 0) {
-      printf("[Server] Received: %s\n", buffer);
-    }
+      // Begin parsing payload
+      ht* ptable = ht_create(8);
+      pl_parse_table_build(&ptable, recv_pkt->payload);
 
-    ot_pkt* recv_pkt = NULL;
-    ssize_t bytes_deserialized = 0;
+      // Extract the PL_STATE payload
+      ot_cli_state_t* recv_state = ht_get(ptable, "PL_STATE");
 
-    if ((bytes_deserialized = ot_pkt_deserialize(recv_pkt, buffer, sizeof buffer)) < 0)
-    {
-      printf("[OTTER SERVER] failed deserialization from %s\n", inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
-
-      ot_pkt_destroy(&recv_pkt);
-      close(new_socket);
-      memset(buffer, 0, SRV_BUFFER_SIZE);
-
-      continue;
-    } 
-
-    printf("[OTTER SERVER] deserialized %zu bytes from %s\n", bytes_deserialized, inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
-
-    // Build parse table
-    ht* parse_table = ht_create(8);
-    pl_parse_table_build(&parse_table, recv_pkt->payload);
-
-    // Check for the client's request type
-    ot_cli_state_t* recv_req_type = ht_get(parse_table, "PL_STATE");
-    switch( *recv_req_type )
-    {
-      case TREQ:  //<< Client is requesting to tether
-        {
-          // Compute expiry time
-          time_t cli_exp_time = current_time + DEF_EXP_TIME;
-          time_t cli_renew_time = current_time + DEF_EXP_TIME*0.75;
-
-          // Create the client context
-          ot_cli_ctx cc = ot_cli_ctx_create(recv_pkt->header, *recv_req_type, cli_exp_time, cli_renew_time);
-          
-          // Convert client mac to string for ht set
-          char recv_macstr[24];
-          bytes_to_macstr(recv_pkt->header.cli_mac, recv_macstr);
-
-          // Add client context
-          if ( ht_set_cli_ctx(srv_ctx->ctable, recv_macstr, cc) == NULL ) 
+      switch(*recv_state)
+      {
+        case TREQ: 
           {
-            printf("[OTTER SERVER] failed to add context for client %s from %s\n", recv_macstr, inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+            printf("TREQ reached\n");
+            break;
           }
-
-
-          // If all successful, reply with a TACK pkt
-          /*
-        if ( ot_srv_tack_reply() < 0 )
-        {
-          printf("[OTTER SERVER] failed reply to client %s from %s\n", recv_macstr, inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
-
-          ot_pkt_destroy(&recv_pkt);
-          close(new_socket);
-          memset(buffer, 0, SRV_BUFFER_SIZE);
-
-          continue;
-        }
-        */
-
-          break;
-        }
-      case TREN:  //<< Client is trying to renew
-        break;
-      case CPULL: //<< Client is pulling credentials
-        break;
-
-      default:    //<< The client request is not a viable request (perform cleanup)
-        ot_pkt_destroy(&recv_pkt);
-        close(new_socket);
-        memset(buffer, 0, SRV_BUFFER_SIZE);
-        continue; 
-
-        break;
+        case TREN: 
+          {
+            printf("TREN reached\n");
+            break;
+          }
+        case CPULL: 
+          {
+            printf("CPULL reached\n");
+            break;
+          }
+        default: 
+          {
+            printf("ERR: improper client state\n");
+            break;
+          }
+      }
     }
 
-
-    // Close the specific connection, but keep the server_fd open for the next client
-    close(new_socket);
-    memset(buffer, 0, SRV_BUFFER_SIZE);
+    close(conn_fd);
   }
 }
 
