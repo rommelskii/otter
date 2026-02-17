@@ -4,8 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 
 #include "ht.h"
+
+#define SRV_PORT 7192
+#define SRV_BUFFER_SIZE 2048
 
 /**
  * Private method wrappers for ht API
@@ -136,9 +140,107 @@ void ot_srv_ctx_destroy(ot_srv_ctx** os)
 }
 
 // Runs the server loop
-void ot_srv_run() 
+void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC) 
 { 
-  sleep(2);
-  return;
+  int server_fd, new_socket;
+  struct sockaddr_in address;
+  int opt = 1;
+  int addrlen = sizeof(address);
+  uint8_t buffer[SRV_BUFFER_SIZE] = {0};
+
+  // 1. Create socket file descriptor
+  if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+    perror("socket failed");
+    exit(EXIT_FAILURE);
+  }
+
+  // 2. Attach socket to the port 8080 (Forcefully)
+  if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+    perror("setsockopt");
+    exit(EXIT_FAILURE);
+  }
+
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = INADDR_ANY; // Listen on all interfaces
+  address.sin_port = htons(SRV_PORT);
+
+  // 3. Bind the socket to the network address and port
+  if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    perror("bind failed");
+    exit(EXIT_FAILURE);
+  }
+
+  // 4. Start listening for incoming connections
+  if (listen(server_fd, 3) < 0) {
+    perror("listen");
+    exit(EXIT_FAILURE);
+  }
+
+  printf("[OTTER SERVER] listening on port %d...\n", SRV_PORT);
+
+  // Otter server variables go here
+  ot_srv_ctx_mdata srv_mdata = ot_srv_ctx_mdata_create(SRV_PORT, SRV_IP, SRV_MAC);
+  ot_srv_ctx* srv_ctx = ot_srv_ctx_create(srv_mdata);
+
+  char ipbuf[INET_ADDRSTRLEN] = {0};
+
+  while(1) {
+    // 5. Accept a connection (This blocks until a client connects)
+    if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
+      perror("accept");
+      exit(EXIT_FAILURE);
+    }
+
+    // 6. Read data from the client
+    int valread = read(new_socket, buffer, SRV_BUFFER_SIZE);
+    if (valread > 0) {
+      printf("[Server] Received: %s\n", buffer);
+    }
+
+    ot_pkt* recv_pkt = NULL;
+    ssize_t bytes_deserialized = 0;
+
+    if ((bytes_deserialized = ot_pkt_deserialize(recv_pkt, buffer, sizeof buffer)) < 0)
+    {
+      printf("[OTTER SERVER] failed deserialization from %s\n", inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+
+      ot_pkt_destroy(&recv_pkt);
+      close(new_socket);
+      memset(buffer, 0, SRV_BUFFER_SIZE);
+
+      continue;
+    } 
+
+    printf("[OTTER SERVER] deserialized %zu bytes from %s\n", bytes_deserialized, inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+    
+    // Build parse table
+    ht* parse_table = ht_create(8);
+    pl_parse_table_build(&parse_table, recv_pkt->payload);
+    
+    // Check for the client's request type
+    ot_cli_state_t* recv_req_type = ht_get(parse_table, "PL_STATE");
+    switch( *recv_req_type )
+    {
+      case TREQ:  //<< Client is requesting to tether
+        break;
+      case TREN:  //<< Client is trying to renew
+        break;
+      case CPULL: //<< Client is pulling credentials
+        break;
+
+      default:    //<< The client request is not a viable request (perform cleanup)
+        ot_pkt_destroy(&recv_pkt);
+        close(new_socket);
+        memset(buffer, 0, SRV_BUFFER_SIZE);
+        continue; 
+
+        break;
+    }
+
+
+    // Close the specific connection, but keep the server_fd open for the next client
+    close(new_socket);
+    memset(buffer, 0, SRV_BUFFER_SIZE);
+  }
 }
 

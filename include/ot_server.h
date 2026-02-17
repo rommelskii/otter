@@ -76,7 +76,7 @@ ot_cli_ctx ot_srv_get_cli_ctx(ot_srv_ctx* sc, const char* macstr);
 void ot_srv_ctx_destroy(ot_srv_ctx** os);
 
 // Runs the server loop
-void ot_srv_run(); //<< insert the packet logic here
+void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC); //<< insert the packet logic here
 
 #endif //OT_SERVER_H_
 
