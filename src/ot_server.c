@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <assert.h>
 
 #include "ht.h"
 
@@ -222,7 +223,38 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
     switch( *recv_req_type )
     {
       case TREQ:  //<< Client is requesting to tether
+      {
+        // TREQ does not need a context check, just add the MAC and header as a context
+        ot_cli_ctx cc = ot_cli_ctx_create(recv_pkt->header, *recv_req_type);
+
+        char recv_macstr[24];
+        bytes_to_macstr(recv_pkt->header.cli_mac, recv_macstr);
+
+        // Add client context
+        if ( ht_set_cli_ctx(srv_ctx->ctable, recv_macstr, cc) == NULL ) 
+        {
+          printf("[OTTER SERVER] failed to add context for client %s from %s\n", recv_macstr, inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+        }
+
+        // Compute expiry time
+        assert("TODO: expiry/renewal time computation" && false);
+
+        // If all successful, reply with a TACK pkt
+        /*
+        if ( ot_srv_tack_reply() < 0 )
+        {
+          printf("[OTTER SERVER] failed reply to client %s from %s\n", recv_macstr, inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+
+          ot_pkt_destroy(&recv_pkt);
+          close(new_socket);
+          memset(buffer, 0, SRV_BUFFER_SIZE);
+
+          continue;
+        }
+        */
+
         break;
+        }
       case TREN:  //<< Client is trying to renew
         break;
       case CPULL: //<< Client is pulling credentials
