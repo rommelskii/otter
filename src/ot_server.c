@@ -197,31 +197,105 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
 
       // Extract the PL_STATE payload
       ot_cli_state_t* recv_state = ht_get(ptable, "PL_STATE");
+      if (recv_state == NULL) 
+      {
+        fprintf(stderr, "[ot srv] pkt recv err: no PL_STATE payload\n");
+        goto cleanup;
+      }
 
       switch(*recv_state)
       {
         case TREQ: 
           {
-            printf("TREQ reached\n");
+            //assert("TREQ reached; not yet implemented" && false);
+            uint32_t* recv_cli_ip;
+            if ((recv_cli_ip = ht_get(ptable, "PL_CLI_IP")) == NULL) 
+            {
+              fprintf(stderr, "[ot srv] treq parse error: no cli ip payload\n");
+              break;
+            }
+
+            uint8_t recv_cli_mac[6] = {0};
+            if (ht_get(ptable, "PL_CLI_IP") == NULL)
+            {
+              fprintf(stderr, "[ot srv] treq parse error: no cli mac payload\n");
+              break;
+            }
+            memcpy(recv_cli_mac, ht_get(ptable, "PL_CLI_MAC"), sizeof(recv_cli_mac));
+
+            ot_pkt_header tack_hd = ot_pkt_header_create(SRV_IP, *recv_cli_ip, SRV_MAC, recv_cli_mac, 
+                                                         DEF_EXP_TIME, DEF_EXP_TIME*0.75);
+            ot_pkt* tack_reply = ot_pkt_create();
+            tack_reply->header = tack_hd;
+            
+            uint8_t pl_tack_state_msgtype = (uint8_t)PL_STATE;
+            uint8_t pl_tack_state_value = (uint8_t)TACK;
+            uint8_t pl_tack_state_vlen = (uint8_t)sizeof(pl_tack_state_value);
+            ot_payload* pl_tack_state_payload = ot_payload_create(pl_tack_state_msgtype, &pl_tack_state_value, pl_tack_state_vlen);
+
+            uint8_t pl_tack_srv_ip_msgtype = (uint8_t)PL_SRV_IP;
+            uint32_t pl_tack_srv_ip_value = SRV_IP;
+            uint8_t pl_tack_srv_ip_vlen = (uint8_t)sizeof(pl_tack_srv_ip_value);
+            ot_payload* pl_tack_srv_ip_payload = ot_payload_create(pl_tack_srv_ip_msgtype, &pl_tack_srv_ip_value,
+                                                                   pl_tack_srv_ip_vlen);
+
+            uint8_t pl_tack_srv_mac_msgtype = (uint8_t)PL_SRV_MAC;
+            uint8_t pl_tack_srv_mac_value[6] = {0}; 
+            memcpy(pl_tack_srv_mac_value, SRV_MAC, 6);
+
+            uint8_t pl_tack_srv_mac_vlen = (uint8_t)sizeof(pl_tack_srv_mac_value);
+            ot_payload* pl_tack_srv_mac_payload = ot_payload_create(pl_tack_srv_mac_msgtype, &pl_tack_srv_mac_value,
+                                                                   pl_tack_srv_mac_vlen);
+
+            uint8_t pl_tack_exp_time_msgtype = (uint8_t)PL_ETIME;
+            uint32_t pl_tack_exp_time_value = DEF_EXP_TIME;
+            uint8_t pl_tack_exp_time_vlen = (uint8_t)sizeof(pl_tack_exp_time_value);
+            ot_payload* pl_tack_exp_time_payload = ot_payload_create(pl_tack_exp_time_msgtype, &pl_tack_exp_time_value,
+                                                                     pl_tack_exp_time_vlen);
+
+            uint8_t pl_tack_renew_time_msgtype = (uint8_t)PL_RTIME;
+            uint32_t pl_tack_renew_time_value = DEF_EXP_TIME*0.75;
+            uint8_t pl_tack_renew_time_vlen = (uint8_t)sizeof(pl_tack_renew_time_value);
+            ot_payload* pl_tack_renew_time_payload = ot_payload_create(pl_tack_renew_time_msgtype, &pl_tack_renew_time_value,
+                                                                     pl_tack_renew_time_vlen);
+
+            tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_state_payload);
+            tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_srv_ip_payload);
+            tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_srv_mac_payload);
+            tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_exp_time_payload);
+            tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_renew_time_payload);
+
+            ssize_t bytes_serialized = ot_pkt_serialize(tack_reply, rx_buffer, sizeof rx_buffer);
+
+            send(conn_fd, rx_buffer, bytes_serialized, 0);
             break;
           }
         case TREN: 
           {
-            printf("TREN reached\n");
+            assert("TREN reached; not yet implemented" && false);
             break;
           }
         case CPULL: 
           {
-            printf("CPULL reached\n");
+            assert("CPULL reached; not yet implemented" && false);
             break;
           }
         default: 
           {
-            printf("ERR: improper client state\n");
+            assert("illegal client state; not yet implemented" && false);
             break;
           }
       }
+
+    cleanup:
+      ht_destroy(ptable);
+      ptable=NULL;
+      ot_pkt_destroy(&recv_pkt);
+
+      close(conn_fd);
     }
+
+
 
     close(conn_fd);
   }
