@@ -306,7 +306,7 @@ void msgtype_to_str(ot_pkt_msgtype_t msgtype, char* str_msgtype)
 {
   if (str_msgtype == NULL) return;
   
-  str_msgtype = (char*)msgtype_to_str_ret(msgtype);
+  strcpy(str_msgtype, (char*)msgtype_to_str_ret(msgtype));
 }
 
 void pl_parse_table_build(ht** pt, ot_payload* pl_head)
@@ -318,7 +318,9 @@ void pl_parse_table_build(ht** pt, ot_payload* pl_head)
     char msgtype_str[16];
     msgtype_to_str(msgtype, msgtype_str);
 
-    void* value = oti->value;
+    //void* value = oti->value;
+    void* value = malloc(oti->vlen);
+    memcpy(value, oti->value, oti->vlen);
     uint8_t vlen = oti->vlen;
 
     ht_set(pt, msgtype_str, value, (size_t)vlen);
