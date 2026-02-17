@@ -29,8 +29,8 @@ int main(void)
   const char* TEST_STR_SRV_MAC = "aa:bb:cc:dd:ee:ff";
   const char* TEST_STR_CLI_MAC = "ff:ee:dd:cc:bb:aa";
 
-  uint64_t TEST_EXP_TIME = 86400;
-  uint64_t TEST_RENEW_TIME = 86400*0.75;
+  uint32_t TEST_EXP_TIME = 86400;
+  uint32_t TEST_RENEW_TIME = 86400*0.75;
 
   time_t TEST_CTX_EXP_TIME = curr_time + TEST_EXP_TIME;
   time_t TEST_CTX_RENEW_TIME = curr_time + TEST_RENEW_TIME;
