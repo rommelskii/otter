@@ -34,7 +34,7 @@ int main(void)
   uint32_t TEST_PAYLOAD_VALUE = inet_addr("203.118.16.2");
   uint8_t TEST_PAYLOAD_VLEN = (uint8_t)sizeof(TEST_PAYLOAD_VALUE);
 
-  printf("---- BEGIN PKT TESTS ----\n");
+  printf("\n---- BEGIN PKT TESTS ----\n");
   
   // Begin string/byte formatter tests
   char srvmac_str[256];

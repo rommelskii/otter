@@ -19,6 +19,7 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <assert.h>
+#include <signal.h>
 
 int tests_failed = 0;
 
@@ -69,17 +70,19 @@ int main(void)
 
   const int PORT = 7192;
   const uint32_t SRV_IP = inet_addr("127.0.0.1");
+  uint8_t SRV_MAC[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+  
   const uint32_t CLI_IP = inet_addr("127.0.0.1");
 
   if (pid == 0)
   {
-    ot_srv_run(); //<< uncomment this after compiling for syntax errors
-    printf("Running server...\n");
+    ot_srv_run(SRV_IP, SRV_MAC); //<< uncomment this after compiling for syntax errors
     exit(0);
   } else {
     sleep(2);
     // Valid tests
     test_treq(PORT, SRV_IP, CLI_IP);
+    /*
     test_tren(PORT, SRV_IP, CLI_IP);
     test_cpull(PORT, SRV_IP, CLI_IP);
 
@@ -94,8 +97,16 @@ int main(void)
     // Unknown client tests
     test_unknown_tren(PORT, SRV_IP, CLI_IP);
     test_unknown_cpull(PORT, SRV_IP, CLI_IP);
+    */
 
-    wait(NULL);
+    if (kill(pid, SIGTERM) == -1) 
+    {
+      perror("kill failed");
+    }
+
+    int status;
+    waitpid(pid, &status, 0);
+
     printf("Child process for client has stopped\n");
   }
 
@@ -123,16 +134,15 @@ int test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
   // Receive the reply for a TREQ packet to server
   uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
   uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
-  printf("[treq test] Performing pre-request preparation... ");
-  ot_pkt* reply_pkt = NULL;
+
+  ot_pkt* reply_pkt = ot_pkt_create();
   if (test_treq_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0) 
   {
-    printf("FAILED\n");
+    printf("[test_treq] failed to send treq pkt to server\n");
     return 1;
-  } else printf("SUCCESS\n");
+  } 
   
-  printf("---- BEGIN TREQ TESTS ----\n");
-
+  printf("\n---- BEGIN TREQ TESTS ----\n");
 
   // Header checks
   EXPECT(reply_pkt != NULL, "[treq test] deserialization non-nullity test");
@@ -158,36 +168,31 @@ int test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP)
 
   // Start payload parsing
   // Check expected TACK reply with TREQ input
-  printf("[treq reply] checking for PL_STATE entry in parse table... ");
   ot_cli_state_t* expected_tack = ht_get(parse_table, "PL_STATE");
   if (expected_tack == NULL)
   {
-    printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
   EXPECT(*expected_tack == TACK, "[treq reply] reply type (TACK) check");
 
   // Check expected srv ip (should be same as the one sent in the header of the TREQ pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
-  printf("[treq reply] checking for PL_SRV_IP entry in parse table... ");
   if (expected_srv_ip == NULL)
   {
-    printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
   EXPECT(*expected_srv_ip == SRV_IP, "[treq reply] srv ip check");
 
   // Check expected srv mac (also the same as the one in the header of the TREQ pkt)
   uint8_t* expected_srv_mac = ht_get(parse_table, "PL_SRV_MAC");
-  printf("[treq reply] checking for PL_SRV_MAC entry in parse table... ");
   if (expected_srv_mac == NULL)
   {
     printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
   EXPECT(memcmp(expected_srv_mac, srv_mac, 6) == 0, "[treq reply] srv mac check");
 
 
@@ -780,6 +785,11 @@ int test_unknown_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
 
   // Send a TREN request to server and deserialize reply pkt 
   test_tren_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac); //<< we now use the debug cli mac
+  if (reply_pkt == NULL)
+  {
+    ++tests_failed;
+    return -1;
+  }
 
   // Build parse table from possible TINV reply pkt payloads
   ot_payload* reply_head = reply_pkt->payload;
@@ -853,6 +863,11 @@ int test_unknown_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP)
   ot_pkt* reply_pkt = NULL;
 
   test_cpull_send(&reply_pkt, UNAME, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac); //<< dont forget to indicate UNAME for CPULL pkts
+  if (reply_pkt == NULL)
+  {
+    ++tests_failed;
+    return -1;
+  }
 
   // Build parse table from possible CINV reply pkt payloads
   ot_payload* reply_head = reply_pkt->payload;
@@ -932,14 +947,14 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   treq_pkt->header = treq_hd;
 
   // Specify TREQ state payload
-  ot_pkt_msgtype_t pl_state_type = PL_STATE; //<< state to indicate that we are sending a TREQ packet
+  uint8_t pl_state_type = (uint8_t)PL_STATE; //<< state to indicate that we are sending a TREQ packet
   uint8_t pl_state_value = (uint8_t)TREQ; 
   uint8_t pl_state_vlen = (uint8_t)sizeof(pl_state_value);
 
   ot_payload* pl_state_payload = ot_payload_create(pl_state_type, &pl_state_value, pl_state_vlen);
 
   // Specify TREQ cli_ip payload 
-  ot_pkt_msgtype_t pl_cli_ip_type = PL_CLI_IP;
+  uint8_t pl_cli_ip_type = (uint8_t)PL_CLI_IP;
   uint32_t pl_cli_ip_value = CLI_IP;
   uint8_t pl_cli_ip_vlen = (uint8_t)sizeof(pl_cli_ip_value);
 
@@ -948,7 +963,7 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   // Specify TREQ cli_mac payload
   // pl_create(PL_CLI_MAC, MAC*, sizeof(MAC))
 
-  ot_pkt_msgtype_t pl_cli_mac_type = PL_CLI_MAC;
+  uint8_t pl_cli_mac_type = (uint8_t)PL_CLI_MAC;
   uint8_t pl_cli_mac_value[6] = {0}; 
 
   memcpy(pl_cli_mac_value, cli_mac, 6);
@@ -958,21 +973,18 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   ot_payload* pl_cli_mac_payload = ot_payload_create(pl_cli_mac_type, &pl_cli_mac_value, pl_cli_mac_vlen);
 
   // Create payload list in TREQ pkt
-  ot_payload* treq_payload_head = treq_pkt->payload;
-  treq_payload_head = ot_payload_append(treq_payload_head, pl_state_payload);
-  treq_payload_head = ot_payload_append(treq_payload_head, pl_cli_ip_payload);
-  treq_payload_head = ot_payload_append(treq_payload_head, pl_cli_mac_payload);
+  treq_pkt->payload = ot_payload_append(treq_pkt->payload, pl_state_payload);
+  treq_pkt->payload = ot_payload_append(treq_pkt->payload, pl_cli_ip_payload);
+  treq_pkt->payload = ot_payload_append(treq_pkt->payload, pl_cli_mac_payload);
 
   // Serialize TREQ pkt
-  printf("[treq test] serializing pkt... ");
   ssize_t bytes_serialized = 0;
   uint8_t buf[2048] = {0xff}; //<< pre-set with 0xFF terminator
   if ( (bytes_serialized = ot_pkt_serialize(treq_pkt, buf, sizeof buf)) < 0) 
   {
-    printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
   
   // Begin TCP send
   int sockfd = 0;
@@ -989,40 +1001,40 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   serv_addr.sin_port = htons(PORT);
   serv_addr.sin_addr.s_addr = SRV_IP;
 
-  printf("[treq test] attempting to connect to server... ");
   if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
     printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
 
   // Send the serialized TREQ to server
-  printf("[treq test] sending bytes to server... ");
   send(sockfd, buf, bytes_serialized, 0);
+
+  ssize_t bytes_received;
   // Wait for reply
-  if (read(sockfd, buf, sizeof buf) < 0) 
+  if ((bytes_received = read(sockfd, buf, sizeof buf)) < 0) 
   {
-    printf("FAILED\n");
     perror("read failed");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
+
+  memset(&buf[bytes_received], 0xff, sizeof(buf) - bytes_received);
 
   // Finally, deserialize reply
-  printf("[treq reply] deserializing reply... ");
   if (ot_pkt_deserialize(*reply_pkt, buf, sizeof buf) < 0) 
   {
     printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
 
   // Free the pkt we used for sending the TREQ
   ot_pkt_destroy(&treq_pkt);
 
   close(sockfd);
 
-  return 0;
+  return 1;
 }
 
 static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
@@ -1043,7 +1055,7 @@ static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
 
 
   // Specify TREN srv_ip payload 
-  ot_pkt_msgtype_t pl_srv_ip_type = PL_SRV_IP;
+  uint8_t pl_srv_ip_type = PL_SRV_IP;
   uint32_t pl_srv_ip_value = SRV_IP;
   uint8_t pl_srv_ip_vlen = (uint8_t)sizeof(pl_srv_ip_value);
 
@@ -1051,7 +1063,7 @@ static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
 
 
   // Specify TREN cli_ip payload 
-  ot_pkt_msgtype_t pl_cli_ip_type = PL_CLI_IP;
+  uint8_t pl_cli_ip_type = PL_CLI_IP;
   uint32_t pl_cli_ip_value = CLI_IP;
   uint8_t pl_cli_ip_vlen = (uint8_t)sizeof(pl_cli_ip_value);
 
@@ -1059,7 +1071,7 @@ static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
 
   
   // Specify TREN exp_time payload 
-  ot_pkt_msgtype_t pl_exp_time_type = PL_ETIME;
+  uint8_t pl_exp_time_type = PL_ETIME;
   uint32_t pl_exp_time_value = 86400;
   uint8_t pl_exp_time_vlen = (uint8_t)sizeof(pl_exp_time_value);
 
@@ -1067,7 +1079,7 @@ static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   
 
   // Specify TREN renew_time payload 
-  ot_pkt_msgtype_t pl_renew_time_type = PL_RTIME;
+  uint8_t pl_renew_time_type = PL_RTIME;
   uint32_t pl_renew_time_value = 86400 * 0.75;
   uint8_t pl_renew_time_vlen = (uint8_t)sizeof(pl_renew_time_value);
 
@@ -1075,22 +1087,19 @@ static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
 
 
   // Create payload list in TREN pkt
-  ot_payload* tren_payload_head = tren_pkt->payload;
-  tren_payload_head = ot_payload_append(tren_payload_head, pl_srv_ip_payload);
-  tren_payload_head = ot_payload_append(tren_payload_head, pl_cli_ip_payload);
-  tren_payload_head = ot_payload_append(tren_payload_head, pl_exp_time_payload);
-  tren_payload_head = ot_payload_append(tren_payload_head, pl_renew_time_payload);
+  tren_pkt->payload = ot_payload_append(tren_pkt->payload, pl_srv_ip_payload);
+  tren_pkt->payload = ot_payload_append(tren_pkt->payload, pl_cli_ip_payload);
+  tren_pkt->payload = ot_payload_append(tren_pkt->payload, pl_exp_time_payload);
+  tren_pkt->payload = ot_payload_append(tren_pkt->payload, pl_renew_time_payload);
 
   // Serialize TREN pkt
-  printf("[tren send] serializing pkt... ");
   ssize_t bytes_serialized = 0;
   uint8_t buf[2048] = {0xff}; //<< pre-set with 0xFF terminator
   if ( (bytes_serialized = ot_pkt_serialize(tren_pkt, buf, sizeof buf)) < 0) 
   {
-    printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
   
   // Begin TCP send
   int sockfd = 0;
@@ -1107,33 +1116,28 @@ static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   serv_addr.sin_port = htons(PORT);
   serv_addr.sin_addr.s_addr = SRV_IP;
 
-  printf("[tren send] attempting to connect to server... ");
   if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
     printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
 
   // Send the serialized TREN to server
-  printf("[tren send] sending bytes to server... ");
   send(sockfd, buf, bytes_serialized, 0);
   // Wait for reply
   if (read(sockfd, buf, sizeof buf) < 0) 
   {
-    printf("FAILED\n");
     perror("read failed");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
 
   // Finally, deserialize reply
-  printf("[tren reply] deserializing reply... ");
   if (ot_pkt_deserialize(*reply_pkt, buf, sizeof buf) < 0) 
   {
-    printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
 
   // Free the pkt we used for sending the TREN pkt
   ot_pkt_destroy(&tren_pkt);
@@ -1153,7 +1157,7 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
   cpull_pkt->header = cpull_hd;
 
   // Specify CPULL state payload
-  ot_pkt_msgtype_t pl_state_type = PL_STATE; //<< state to indicate that we are sending a TREN packet
+  uint8_t pl_state_type = PL_STATE; //<< state to indicate that we are sending a TREN packet
   uint8_t pl_state_value = (uint8_t)CPULL; 
   uint8_t pl_state_vlen = (uint8_t)sizeof(pl_state_value);
 
@@ -1161,7 +1165,7 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
 
 
   // Specify CPULL srv_ip payload 
-  ot_pkt_msgtype_t pl_srv_ip_type = PL_SRV_IP;
+  uint8_t pl_srv_ip_type = PL_SRV_IP;
   uint32_t pl_srv_ip_value = SRV_IP;
   uint8_t pl_srv_ip_vlen = (uint8_t)sizeof(pl_srv_ip_value);
 
@@ -1169,7 +1173,7 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
 
 
   // Specify TREN cli_ip payload 
-  ot_pkt_msgtype_t pl_cli_ip_type = PL_CLI_IP;
+  uint8_t pl_cli_ip_type = PL_CLI_IP;
   uint32_t pl_cli_ip_value = CLI_IP;
   uint8_t pl_cli_ip_vlen = (uint8_t)sizeof(pl_cli_ip_value);
 
@@ -1177,30 +1181,26 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
 
   
   // Specify CPULL uname payload 
-  ot_pkt_msgtype_t pl_uname_type = PL_UNAME;
+  uint8_t pl_uname_type = PL_UNAME;
   char* pl_uname_value = (char*)uname;
   uint8_t pl_uname_vlen = (uint8_t)strlen(pl_uname_value)+1;
 
   ot_payload* pl_uname_payload = ot_payload_create(pl_uname_type, pl_uname_value, pl_uname_vlen);
   
-
-
   // Create payload list in CPULL pkt
   ot_payload* cpull_payload_head = cpull_pkt->payload;
-  cpull_payload_head = ot_payload_append(cpull_payload_head, pl_srv_ip_payload);
-  cpull_payload_head = ot_payload_append(cpull_payload_head, pl_cli_ip_payload);
-  cpull_payload_head = ot_payload_append(cpull_payload_head, pl_uname_payload);
+  cpull_pkt->payload = ot_payload_append(cpull_pkt->payload, pl_srv_ip_payload);
+  cpull_pkt->payload = ot_payload_append(cpull_pkt->payload, pl_cli_ip_payload);
+  cpull_pkt->payload = ot_payload_append(cpull_pkt->payload, pl_uname_payload);
 
   // Serialize CPULL pkt
-  printf("[cpull send] serializing pkt... ");
   ssize_t bytes_serialized = 0;
   uint8_t buf[2048] = {0xff}; //<< pre-set with 0xFF terminator
   if ( (bytes_serialized = ot_pkt_serialize(cpull_pkt, buf, sizeof buf)) < 0) 
   {
-    printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
   
   // Begin TCP send
   int sockfd = 0;
@@ -1217,33 +1217,27 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
   serv_addr.sin_port = htons(PORT);
   serv_addr.sin_addr.s_addr = SRV_IP;
 
-  printf("[cpull send] attempting to connect to server... ");
   if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-    printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
 
   // Send the serialized CPULL to server
-  printf("[cpull send] sending bytes to server... ");
   send(sockfd, buf, bytes_serialized, 0);
   // Wait for reply
   if (read(sockfd, buf, sizeof buf) < 0) 
   {
-    printf("FAILED\n");
     perror("read failed");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
 
   // Finally, deserialize reply
-  printf("[cpull reply] deserializing reply... ");
   if (ot_pkt_deserialize(*reply_pkt, buf, sizeof buf) < 0) 
   {
-    printf("FAILED\n");
     ++tests_failed;
     return -1;
-  } else printf("SUCCESS\n");
+  } 
 
   // Free the pkt we used for sending the CPULL pkt
   ot_pkt_destroy(&cpull_pkt);

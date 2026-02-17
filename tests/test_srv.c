@@ -41,7 +41,7 @@ int main(void)
   ot_pkt_header TEST_HEADER = ot_pkt_header_create(TEST_SRV_IP, TEST_CLI_IP,  TEST_BYTES_SRV_MAC, TEST_BYTES_CLI_MAC, TEST_EXP_TIME, TEST_RENEW_TIME);
   ot_cli_state_t TEST_STATE = TACK;
 
-  printf("---- BEGIN SRV TESTS ----\n");
+  printf("\n---- BEGIN SRV TESTS ----\n");
 
 
   // Client context creation
