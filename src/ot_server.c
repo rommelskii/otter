@@ -5,12 +5,14 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <time.h>
 #include <assert.h>
 
 #include "ht.h"
 
 #define SRV_PORT 7192
 #define SRV_BUFFER_SIZE 2048
+
 
 /**
  * Private method wrappers for ht API
@@ -51,13 +53,16 @@ ot_srv_ctx_mdata ot_srv_ctx_mdata_create(const int PORT, const uint32_t SRV_IP, 
 }
 
 // Allocates memory for a client context and creates it
-ot_cli_ctx ot_cli_ctx_create(ot_pkt_header h, ot_cli_state_t s)
+ot_cli_ctx ot_cli_ctx_create(ot_pkt_header h, ot_cli_state_t s, time_t exp_time, time_t renew_time)
 {
   ot_cli_ctx pcc = {0};
   
   // Proceed to copying values to new and allocated client context
   memcpy(&(pcc.header), &h, sizeof(ot_pkt_header));
   pcc.state = s;
+
+  pcc.ctx_exp_time = exp_time;
+  pcc.ctx_renew_time = renew_time;
 
   return pcc;
 }
@@ -143,6 +148,8 @@ void ot_srv_ctx_destroy(ot_srv_ctx** os)
 // Runs the server loop
 void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC) 
 { 
+  time_t current_time;
+
   int server_fd, new_socket;
   struct sockaddr_in address;
   int opt = 1;
@@ -186,7 +193,9 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
   char ipbuf[INET_ADDRSTRLEN] = {0};
 
   while(1) {
-    // 5. Accept a connection (This blocks until a client connects)
+    time(&current_time); //<< fetch current time
+
+    // Accept the reply from the client we listened to
     if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
       perror("accept");
       exit(EXIT_FAILURE);
@@ -213,34 +222,37 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
     } 
 
     printf("[OTTER SERVER] deserialized %zu bytes from %s\n", bytes_deserialized, inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
-    
+
     // Build parse table
     ht* parse_table = ht_create(8);
     pl_parse_table_build(&parse_table, recv_pkt->payload);
-    
+
     // Check for the client's request type
     ot_cli_state_t* recv_req_type = ht_get(parse_table, "PL_STATE");
     switch( *recv_req_type )
     {
       case TREQ:  //<< Client is requesting to tether
-      {
-        // TREQ does not need a context check, just add the MAC and header as a context
-        ot_cli_ctx cc = ot_cli_ctx_create(recv_pkt->header, *recv_req_type);
-
-        char recv_macstr[24];
-        bytes_to_macstr(recv_pkt->header.cli_mac, recv_macstr);
-
-        // Add client context
-        if ( ht_set_cli_ctx(srv_ctx->ctable, recv_macstr, cc) == NULL ) 
         {
-          printf("[OTTER SERVER] failed to add context for client %s from %s\n", recv_macstr, inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
-        }
+          // Compute expiry time
+          time_t cli_exp_time = current_time + DEF_EXP_TIME;
+          time_t cli_renew_time = current_time + DEF_EXP_TIME*0.75;
 
-        // Compute expiry time
-        assert("TODO: expiry/renewal time computation" && false);
+          // Create the client context
+          ot_cli_ctx cc = ot_cli_ctx_create(recv_pkt->header, *recv_req_type, cli_exp_time, cli_renew_time);
+          
+          // Convert client mac to string for ht set
+          char recv_macstr[24];
+          bytes_to_macstr(recv_pkt->header.cli_mac, recv_macstr);
 
-        // If all successful, reply with a TACK pkt
-        /*
+          // Add client context
+          if ( ht_set_cli_ctx(srv_ctx->ctable, recv_macstr, cc) == NULL ) 
+          {
+            printf("[OTTER SERVER] failed to add context for client %s from %s\n", recv_macstr, inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+          }
+
+
+          // If all successful, reply with a TACK pkt
+          /*
         if ( ot_srv_tack_reply() < 0 )
         {
           printf("[OTTER SERVER] failed reply to client %s from %s\n", recv_macstr, inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
@@ -253,7 +265,7 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
         }
         */
 
-        break;
+          break;
         }
       case TREN:  //<< Client is trying to renew
         break;

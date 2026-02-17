@@ -1,8 +1,12 @@
 #ifndef OT_SERVER_H_
 #define OT_SERVER_H_
 
+#include <time.h>
+
 #include "ot_packet.h"
 #include "ht.h"
+
+#define DEF_EXP_TIME 86400  //<< default expiry is 1 day
 
 typedef enum 
 {
@@ -22,6 +26,8 @@ typedef struct ot_cli_ctx
 {
   ot_pkt_header     header;
   ot_cli_state_t    state;
+  time_t            ctx_exp_time;
+  time_t            ctx_renew_time;
 } ot_cli_ctx;
 #pragma pack(pop)
 
@@ -55,7 +61,7 @@ typedef struct ot_srv_ctx
 ot_srv_ctx_mdata ot_srv_ctx_mdata_create(const int PORT, const uint32_t SRV_IP, uint8_t* SRV_MAC);
 
 // Allocates memory for a client context and creates it
-ot_cli_ctx ot_cli_ctx_create(ot_pkt_header h, ot_cli_state_t s);
+ot_cli_ctx ot_cli_ctx_create(ot_pkt_header h, ot_cli_state_t s, time_t exp_time, time_t renew_time);
 
 // Allocates memory for a server context and creates it
 ot_srv_ctx* ot_srv_ctx_create(ot_srv_ctx_mdata sc_metadata);
