@@ -217,6 +217,32 @@ void* ht_get(ht* table, const char* key)
     return NULL;
 }
 
+// Deletes the entry indexed by the key 
+const char* ht_delete(ht* table, const char* key)
+{
+  if (table == NULL || key == NULL) return NULL;
+  
+  int idx = hash(key, strlen(key)) % table->capacity;
+
+  // If key doesn't exist in the first place, return NULL
+  if (table->entries[idx].key == NULL) return NULL;
+
+  free(table->entries[idx].key); //<< otherwise, free the key
+
+  // Free if the entry value is not null
+  if (table->entries[idx].value != NULL) 
+  {
+    free(table->entries[idx].value);
+  }
+  
+  // Set the entry vlen to 0
+  table->entries[idx].vlen = 0;
+
+  table->size--;
+
+  return key;
+}
+
 size_t ht_length(ht* table) {
     return table ? table->size : 0;
 }
