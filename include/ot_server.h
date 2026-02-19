@@ -6,6 +6,7 @@
 #include "ot_packet.h"
 #include "ht.h"
 
+#define DEF_PORT 7192
 #define DEF_EXP_TIME 86400  //<< default expiry is 1 day
 
 typedef enum 
