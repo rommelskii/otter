@@ -55,6 +55,10 @@ static bool tren_renewal_time_check(ot_srv_ctx* sc, uint8_t* cli_mac, time_t cur
 static void tinv_reply_build(ot_pkt* tinv_reply, ot_pkt_header tinv_hd, 
                              uint32_t srv_ip, uint32_t cli_ip);
 
+static void tack_reply_build(ot_pkt* tack_reply, ot_pkt_header tack_hd, 
+                             uint32_t srv_ip, uint8_t* srv_mac, uint32_t cli_ip,
+                             uint32_t exp_time, uint32_t renew_time);
+
 static void cinv_reply_build(ot_pkt* cinv_reply, ot_pkt_header cinv_hd, uint32_t srv_ip, 
                              uint32_t cli_ip, const char* uname);
 
@@ -314,65 +318,8 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
             ot_pkt* tack_reply = ot_pkt_create();
             ot_pkt_header tack_hd = ot_pkt_header_create(SRV_IP, *recv_cli_ip, SRV_MAC, recv_cli_mac, 
                                                          DEF_EXP_TIME, DEF_EXP_TIME*0.75);
-            tack_reply->header = tack_hd;
-            
-            // Start building payloads for TACK reply
-            
-            // PL_STATE payload
-            uint8_t pl_tack_state_msgtype = (uint8_t)PL_STATE;
-            uint8_t pl_tack_state_value = (uint8_t)TACK;
-            uint8_t pl_tack_state_vlen = (uint8_t)sizeof(pl_tack_state_value);
-            ot_payload* pl_tack_state_payload = ot_payload_create(pl_tack_state_msgtype, 
-                                                                  &pl_tack_state_value, 
-                                                                  pl_tack_state_vlen);
-
-            // PL_SRV_IP payload
-            uint8_t pl_tack_srv_ip_msgtype = (uint8_t)PL_SRV_IP;
-            uint32_t pl_tack_srv_ip_value = SRV_IP;
-            uint8_t pl_tack_srv_ip_vlen = (uint8_t)sizeof(pl_tack_srv_ip_value);
-            ot_payload* pl_tack_srv_ip_payload = ot_payload_create(pl_tack_srv_ip_msgtype, 
-                                                                   &pl_tack_srv_ip_value,
-                                                                   pl_tack_srv_ip_vlen);
-
-            // PL_SRV_MAC payload
-            uint8_t pl_tack_srv_mac_msgtype = (uint8_t)PL_SRV_MAC;
-            uint8_t pl_tack_srv_mac_value[6] = {0}; 
-            memcpy(pl_tack_srv_mac_value, SRV_MAC, 6);
-            uint8_t pl_tack_srv_mac_vlen = (uint8_t)sizeof(pl_tack_srv_mac_value);
-            ot_payload* pl_tack_srv_mac_payload = ot_payload_create(pl_tack_srv_mac_msgtype, 
-                                                                    &pl_tack_srv_mac_value,
-                                                                    pl_tack_srv_mac_vlen);
-
-            uint8_t pl_tack_cli_ip_msgtype = (uint8_t)PL_CLI_IP;
-            uint32_t pl_tack_cli_ip_value = recv_pkt->header.cli_ip;
-            uint8_t pl_tack_cli_ip_vlen = (uint8_t)sizeof(pl_tack_cli_ip_value);
-            ot_payload* pl_tack_cli_ip_payload = ot_payload_create(pl_tack_cli_ip_msgtype, 
-                                                                   &pl_tack_cli_ip_value,
-                                                                   pl_tack_cli_ip_vlen);
-
-            // PL_ETIME payload
-            uint8_t pl_tack_exp_time_msgtype = (uint8_t)PL_ETIME;
-            uint32_t pl_tack_exp_time_value = DEF_EXP_TIME;
-            uint8_t pl_tack_exp_time_vlen = (uint8_t)sizeof(pl_tack_exp_time_value);
-            ot_payload* pl_tack_exp_time_payload = ot_payload_create(pl_tack_exp_time_msgtype, 
-                                                                     &pl_tack_exp_time_value,
-                                                                     pl_tack_exp_time_vlen);
-
-            // PL_RTIME payload
-            uint8_t pl_tack_renew_time_msgtype = (uint8_t)PL_RTIME;
-            uint32_t pl_tack_renew_time_value = DEF_EXP_TIME*0.75;
-            uint8_t pl_tack_renew_time_vlen = (uint8_t)sizeof(pl_tack_renew_time_value);
-            ot_payload* pl_tack_renew_time_payload = ot_payload_create(pl_tack_renew_time_msgtype, 
-                                                                       &pl_tack_renew_time_value,
-                                                                       pl_tack_renew_time_vlen);
-
-            // Build the list on the TACK reply pkt
-            tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_state_payload);
-            tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_srv_ip_payload);
-            tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_srv_mac_payload);
-            tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_cli_ip_payload);
-            tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_exp_time_payload);
-            tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_renew_time_payload);
+            tack_reply_build(tack_reply, tack_hd, SRV_IP, SRV_MAC, recv_pkt->header.cli_ip, 
+                             recv_pkt->header.exp_time, recv_pkt->header.renew_time);
 
             // Finally serialize the TACK reply and send to client
             ssize_t bytes_serialized;
@@ -850,6 +797,71 @@ static void tinv_reply_build(ot_pkt* tinv_reply, ot_pkt_header tinv_hd,
   tinv_reply->payload = ot_payload_append(tinv_reply->payload, pl_state_payload);
   tinv_reply->payload = ot_payload_append(tinv_reply->payload, pl_srv_ip_payload);
   tinv_reply->payload = ot_payload_append(tinv_reply->payload, pl_cli_ip_payload);
+}
+
+static void tack_reply_build(ot_pkt* tack_reply, ot_pkt_header tack_hd, 
+                             uint32_t srv_ip, uint8_t* srv_mac, uint32_t cli_ip,
+                             uint32_t exp_time, uint32_t renew_time)
+{
+  tack_reply->header = tack_hd;
+
+  // Start building payloads for TACK reply
+
+  // PL_STATE payload
+  uint8_t pl_tack_state_msgtype = (uint8_t)PL_STATE;
+  uint8_t pl_tack_state_value = (uint8_t)TACK;
+  uint8_t pl_tack_state_vlen = (uint8_t)sizeof(pl_tack_state_value);
+  ot_payload* pl_tack_state_payload = ot_payload_create(pl_tack_state_msgtype, 
+                                                        &pl_tack_state_value, 
+                                                        pl_tack_state_vlen);
+
+  // PL_SRV_IP payload
+  uint8_t pl_tack_srv_ip_msgtype = (uint8_t)PL_SRV_IP;
+  uint32_t pl_tack_srv_ip_value = srv_ip;
+  uint8_t pl_tack_srv_ip_vlen = (uint8_t)sizeof(pl_tack_srv_ip_value);
+  ot_payload* pl_tack_srv_ip_payload = ot_payload_create(pl_tack_srv_ip_msgtype, 
+                                                         &pl_tack_srv_ip_value,
+                                                         pl_tack_srv_ip_vlen);
+
+  // PL_SRV_MAC payload
+  uint8_t pl_tack_srv_mac_msgtype = (uint8_t)PL_SRV_MAC;
+  uint8_t pl_tack_srv_mac_value[6] = {0}; 
+  memcpy(pl_tack_srv_mac_value, srv_mac, 6);
+  uint8_t pl_tack_srv_mac_vlen = (uint8_t)sizeof(pl_tack_srv_mac_value);
+  ot_payload* pl_tack_srv_mac_payload = ot_payload_create(pl_tack_srv_mac_msgtype, 
+                                                          &pl_tack_srv_mac_value,
+                                                          pl_tack_srv_mac_vlen);
+
+  uint8_t pl_tack_cli_ip_msgtype = (uint8_t)PL_CLI_IP;
+  uint32_t pl_tack_cli_ip_value = cli_ip;
+  uint8_t pl_tack_cli_ip_vlen = (uint8_t)sizeof(pl_tack_cli_ip_value);
+  ot_payload* pl_tack_cli_ip_payload = ot_payload_create(pl_tack_cli_ip_msgtype, 
+                                                         &pl_tack_cli_ip_value,
+                                                         pl_tack_cli_ip_vlen);
+
+  // PL_ETIME payload
+  uint8_t pl_tack_exp_time_msgtype = (uint8_t)PL_ETIME;
+  uint32_t pl_tack_exp_time_value = exp_time;
+  uint8_t pl_tack_exp_time_vlen = (uint8_t)sizeof(pl_tack_exp_time_value);
+  ot_payload* pl_tack_exp_time_payload = ot_payload_create(pl_tack_exp_time_msgtype, 
+                                                           &pl_tack_exp_time_value,
+                                                           pl_tack_exp_time_vlen);
+
+  // PL_RTIME payload
+  uint8_t pl_tack_renew_time_msgtype = (uint8_t)PL_RTIME;
+  uint32_t pl_tack_renew_time_value = renew_time;
+  uint8_t pl_tack_renew_time_vlen = (uint8_t)sizeof(pl_tack_renew_time_value);
+  ot_payload* pl_tack_renew_time_payload = ot_payload_create(pl_tack_renew_time_msgtype, 
+                                                             &pl_tack_renew_time_value,
+                                                             pl_tack_renew_time_vlen);
+
+  // Build the list on the TACK reply pkt
+  tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_state_payload);
+  tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_srv_ip_payload);
+  tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_srv_mac_payload);
+  tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_cli_ip_payload);
+  tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_exp_time_payload);
+  tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_renew_time_payload);
 }
 
 static void cinv_reply_build(ot_pkt* cinv_reply, ot_pkt_header cinv_hd, uint32_t srv_ip,
