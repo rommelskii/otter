@@ -378,6 +378,7 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
               goto cleanup;
             }
 
+
             // Free the tack reply pkt
             ot_pkt_destroy(&tack_reply);
 
