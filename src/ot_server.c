@@ -20,6 +20,8 @@
 /**
  * Private Implementations
  */
+static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
+
 static ssize_t send_pkt(int* sockfd, ot_pkt* pkt, uint8_t* buf, size_t buflen);
 
 static bool cli_expiry_check(ot_srv_ctx* sc, ot_pkt_header hd);
@@ -282,21 +284,22 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
       // State table for the defined cli state from msgtype
       switch(*recv_state)
       {
-        case TREQ: //<< INBOUND TREQ FROM CLIENT
+        case TREQ:
           {
             // Check if the mandatory fields (cli_ip and cli_mac) are in the payloads
-            uint32_t* recv_cli_ip;
-            if ((recv_cli_ip = ht_get(ptable, "PL_CLI_IP")) == NULL) 
+            if (!pl_treq_validate(srv_ctx, ptable, recv_pkt)) 
             {
-              fprintf(stderr, "[ot srv] treq parse error: no cli ip payload\n");
-              break;
+              ot_pkt* tinv_reply = ot_pkt_create();
+              tinv_reply_build(tinv_reply, recv_pkt->header, SRV_IP, recv_pkt->header.cli_ip);
+              if (send_pkt(&conn_fd, tinv_reply, rx_buffer, sizeof rx_buffer) < 0) 
+              {
+                fprintf(stderr, "[ot srv] failed to send tinv to %s\n",
+                        inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+              }
+              goto cleanup; 
             }
+            uint32_t* recv_cli_ip = ht_get(ptable, "PL_CLI_IP");
             uint8_t recv_cli_mac[6] = {0};
-            if (ht_get(ptable, "PL_CLI_MAC") == NULL)
-            {
-              fprintf(stderr, "[ot srv] treq parse error: no cli mac payload\n");
-              break;
-            }
             memcpy(recv_cli_mac, ht_get(ptable, "PL_CLI_MAC"), sizeof(recv_cli_mac));
 
             // If valid TREQ, start building TACK reply pkt 
@@ -608,6 +611,39 @@ server_close:
   ot_srv_ctx_destroy(&srv_ctx);
   close(server_fd);
   return;
+}
+
+static void err_pl_treq_validate(const char* pl) 
+{
+  if (pl == NULL) return;
+  fprintf(stderr, "[ot srv] treq validation error: failed to find %s\n", pl);
+}
+
+static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
+{
+  if (sc == NULL || ptable == NULL || recv_pkt == NULL) return false;
+
+  uint32_t* expected_srv_ip = ht_get(ptable, "PL_SRV_IP");
+  uint32_t* expected_cli_ip = ht_get(ptable, "PL_CLI_IP");
+  uint32_t* expected_cli_mac = ht_get(ptable, "PL_CLI_MAC");
+
+  if (expected_srv_ip == NULL) 
+  {
+    err_pl_treq_validate("PL_SRV_IP");
+    return false;
+  }
+  if (expected_cli_ip == NULL) 
+  {
+    err_pl_treq_validate("PL_CLI_IP");
+    return false;
+  }
+  if (expected_cli_mac == NULL) 
+  {
+    err_pl_treq_validate("PL_CLI_MAC");
+    return false;
+  }
+
+  return true;
 }
 
 // Serializes and sends a pkt to an existing TCP client  
