@@ -228,11 +228,13 @@ const char* ht_delete(ht* table, const char* key)
   if (table->entries[idx].key == NULL) return NULL;
 
   free(table->entries[idx].key); //<< otherwise, free the key
+  table->entries[idx].key = NULL;
 
   // Free if the entry value is not null
   if (table->entries[idx].value != NULL) 
   {
     free(table->entries[idx].value);
+    table->entries[idx].value = NULL;
   }
   
   // Set the entry vlen to 0
