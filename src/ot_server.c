@@ -20,6 +20,10 @@
 /**
  * Private Implementations
  */
+//if (!srv_add_cli_ctx(srv_ctx, recv_pkt)) ;
+
+static bool srv_add_cli_ctx(ot_srv_ctx* sc, ot_pkt* pkt);
+
 static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
 
 static ssize_t send_pkt(int* sockfd, ot_pkt* pkt, uint8_t* buf, size_t buflen);
@@ -378,7 +382,6 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
               goto cleanup;
             }
 
-
             // Free the tack reply pkt
             ot_pkt_destroy(&tack_reply);
 
@@ -386,37 +389,14 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
                    bytes_serialized, 
                    inet_ntop(AF_INET, &address.sin_addr.s_addr, ipbuf, INET_ADDRSTRLEN));
 
-            // Add client to server context after sending TACK
 
-
-            // Convert client MAC to string (for key)
-            char macstr[24] = {0}; //<< needed for converting mac to key
-            bytes_to_macstr(recv_pkt->header.cli_mac, macstr);
-
-            // Perform expiry/renew time computation
-            time(&curr_time); //<< get current time
-            time_t exp_time = curr_time + DEF_EXP_TIME;  
-            time_t renew_time = curr_time + 0.75*DEF_EXP_TIME;
-            if ( strcmp(macstr,"00:00:00:ab:ab:ff") == 0 ) 
+            if (!srv_add_cli_ctx(srv_ctx, recv_pkt)) 
             {
-              printf("[ot srv] received debug mac\n");
-              exp_time = curr_time + 20;
-              renew_time = curr_time + 0.75*20;
-              recv_pkt->header.exp_time = 20;
-              recv_pkt->header.renew_time = 20*0.75;
-            }
-
-            // Finally build the client context object and set to srv ctable
-            ot_cli_ctx cli_ctx = ot_cli_ctx_create(tack_hd, TACK, 
-                                                   exp_time, 
-                                                   renew_time);
-            if ( strcmp(ht_set_cli_ctx(srv_ctx->ctable, macstr, cli_ctx), macstr) != 0 )  
-            {
-              fprintf(stderr, "[ot srv] error: failed to add client context\n");
+              fprintf(stderr, "[ot srv] failed to add cli ctx\n");
               goto cleanup;
             }
 
-            printf("[ot srv] successfully added client %s to srv ctable\n", macstr);
+            printf("[ot srv] successfully added client to srv ctable\n");
 
             break;
           }
@@ -616,11 +596,38 @@ server_close:
   return;
 }
 
+static bool srv_add_cli_ctx(ot_srv_ctx* sc, ot_pkt* pkt)
+{
+  if (sc == NULL || sc->ctable == NULL || pkt == NULL) return false;
+
+  char macstr[24] = {0};
+  bytes_to_macstr(pkt->header.cli_mac, macstr);
+
+  uint32_t etime = DEF_EXP_TIME;
+  if (strcmp(macstr, "00:00:00:ab:ab:ff") == 0) 
+  {
+    etime = 20; 
+  }
+
+  uint32_t rtime = 0.75 * etime;
+
+  pkt->header.exp_time = etime;
+  pkt->header.renew_time = rtime;
+
+  time_t curr_time;
+  time(&curr_time);
+
+  ot_cli_ctx cc = ot_cli_ctx_create(pkt->header, TACK, curr_time + etime, curr_time + rtime);
+
+  return (strcmp(ht_set_cli_ctx(sc->ctable, macstr, cc), macstr) == 0);
+}
+
 static void err_pl_treq_validate(const char* pl) 
 {
   if (pl == NULL) return;
   fprintf(stderr, "[ot srv] treq validation error: failed to find %s\n", pl);
 }
+
 
 static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
 {
