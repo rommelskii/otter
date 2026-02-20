@@ -800,6 +800,13 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
 
   ot_payload* pl_state_payload = ot_payload_create(pl_state_type, &pl_state_value, pl_state_vlen);
 
+  // Specify TREQ srv_ip payload 
+  uint8_t pl_srv_ip_type = (uint8_t)PL_SRV_IP;
+  uint32_t pl_srv_ip_value = SRV_IP;
+  uint8_t pl_srv_ip_vlen = (uint8_t)sizeof(pl_srv_ip_value);
+
+  ot_payload* pl_srv_ip_payload = ot_payload_create(pl_srv_ip_type, &pl_srv_ip_value, pl_srv_ip_vlen);
+
   // Specify TREQ cli_ip payload 
   uint8_t pl_cli_ip_type = (uint8_t)PL_CLI_IP;
   uint32_t pl_cli_ip_value = CLI_IP;
@@ -821,6 +828,7 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
 
   // Create payload list in TREQ pkt
   treq_pkt->payload = ot_payload_append(treq_pkt->payload, pl_state_payload);
+  treq_pkt->payload = ot_payload_append(treq_pkt->payload, pl_srv_ip_payload);
   treq_pkt->payload = ot_payload_append(treq_pkt->payload, pl_cli_ip_payload);
   treq_pkt->payload = ot_payload_append(treq_pkt->payload, pl_cli_mac_payload);
 
