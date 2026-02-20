@@ -298,11 +298,13 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
               }
               goto cleanup; 
             }
+
+            // After validating pkt, safely extract from parse table the mandatory info
             uint32_t* recv_cli_ip = ht_get(ptable, "PL_CLI_IP");
+            
             uint8_t recv_cli_mac[6] = {0};
             memcpy(recv_cli_mac, ht_get(ptable, "PL_CLI_MAC"), sizeof(recv_cli_mac));
 
-            // If valid TREQ, start building TACK reply pkt 
 
             // Allocate memory for TACK reply pkt and set header
             ot_pkt* tack_reply = ot_pkt_create();
@@ -369,8 +371,8 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
             tack_reply->payload = ot_payload_append(tack_reply->payload, pl_tack_renew_time_payload);
 
             // Finally serialize the TACK reply and send to client
-            ssize_t bytes_serialized = ot_pkt_serialize(tack_reply, rx_buffer, sizeof rx_buffer);
-            if (send(conn_fd, rx_buffer, bytes_serialized, 0) < 0) 
+            ssize_t bytes_serialized;
+            if ((bytes_serialized = send_pkt(&conn_fd, tack_reply, rx_buffer, sizeof rx_buffer)) < 0)
             {
               fprintf(stderr, "[ot srv] error: failed to reply TACK to client\n");
               goto cleanup;
