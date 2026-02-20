@@ -9,19 +9,6 @@
 #define DEF_PORT 7192
 #define DEF_EXP_TIME 86400  //<< default expiry is 1 day
 
-typedef enum 
-{
-  TREQ,
-  TACK,
-  TINV,
-  TREN,
-  TPRV,
-  CPULL,
-  CPUSH,
-  CINV,
-  UNKN
-} ot_cli_state_t;
-
 #pragma pack(push, 1) //<< make memcmp happy
 typedef struct ot_cli_ctx 
 {
