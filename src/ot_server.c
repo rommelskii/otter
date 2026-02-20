@@ -20,8 +20,6 @@
 /**
  * Private Implementations
  */
-//if (!srv_add_cli_ctx(srv_ctx, recv_pkt)) ;
-
 static bool srv_add_cli_ctx(ot_srv_ctx* sc, ot_pkt* pkt);
 
 static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
@@ -38,6 +36,11 @@ static bool cli_expiry_check(ot_srv_ctx* sc, ot_pkt_header hd);
 // Returns true if the pkt is valid, otherwise false.
 static bool tren_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
 
+// Validates a deserialized CPULL pkt
+//
+// Checks whether the mandatory payloads are in the CPULL pkt
+//
+// Returns true if the pkt is valid, otherwise false 
 static bool cpull_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
 
 // Checks if the client sending a TREN pkt can renew. 
@@ -55,13 +58,23 @@ static bool tren_renewal_time_check(ot_srv_ctx* sc, uint8_t* cli_mac, time_t cur
 static void tinv_reply_build(ot_pkt* tinv_reply, ot_pkt_header tinv_hd, 
                              uint32_t srv_ip, uint32_t cli_ip);
 
+// Builds an allocated TACK reply pkt
+//
+// Sets the header (tack_hd) and the appropriate payloads (PL_STATE, PL_SRV_IP, PL_SRV_MAC, PL_CLI_IP,
+// PL_ETIME, PL_RTIME)
 static void tack_reply_build(ot_pkt* tack_reply, ot_pkt_header tack_hd, 
                              uint32_t srv_ip, uint8_t* srv_mac, uint32_t cli_ip,
                              uint32_t exp_time, uint32_t renew_time);
 
+// Builds an allocated CINV reply pkt
+//
+// Sets the header (tack_hd) and the appropriate payloads (PL_STATE, PL_SRV_IP, PL_CLI_IP)
 static void cinv_reply_build(ot_pkt* cinv_reply, ot_pkt_header cinv_hd, uint32_t srv_ip, 
                              uint32_t cli_ip, const char* uname);
 
+// Builds an allocated CPUSH reply pkt
+//
+// Sets the header (tack_hd) and the appropriate payloads (PL_STATE, PL_SRV_IP, PL_CLI_IP)
 static void cpush_reply_build(ot_pkt* cpush_reply, ot_pkt_header cpush_hd, uint32_t srv_ip,
                               uint32_t cli_ip, const char* uname, const char* psk);
 
@@ -112,13 +125,12 @@ ot_srv_ctx_mdata ot_srv_ctx_mdata_create(const int PORT, const uint32_t SRV_IP, 
 }
 
 // Allocates memory for a client context and creates it
-ot_cli_ctx ot_cli_ctx_create(ot_pkt_header h, ot_cli_state_t s, time_t exp_time, time_t renew_time)
+ot_cli_ctx ot_cli_ctx_create(ot_pkt_header h, time_t exp_time, time_t renew_time)
 {
   ot_cli_ctx pcc = {0};
 
   // Proceed to copying values to new and allocated client context
   memcpy(&(pcc.header), &h, sizeof(ot_pkt_header));
-  pcc.state = s;
 
   pcc.ctx_exp_time = exp_time;
   pcc.ctx_renew_time = renew_time;
@@ -307,12 +319,21 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
               goto cleanup; 
             }
 
-            // After validating pkt, safely extract from parse table the mandatory info
+
+            if (!srv_add_cli_ctx(srv_ctx, recv_pkt)) 
+            {
+              fprintf(stderr, "[ot srv] failed to add cli ctx\n");
+              goto cleanup;
+            }
+
+            printf("[ot srv] successfully added client to srv ctable\n");
+
+            // After validating pkt and adding ctx, safely extract 
+            // from parse table the mandatory info
             uint32_t* recv_cli_ip = ht_get(ptable, "PL_CLI_IP");
             
             uint8_t recv_cli_mac[6] = {0};
             memcpy(recv_cli_mac, ht_get(ptable, "PL_CLI_MAC"), sizeof(recv_cli_mac));
-
 
             // Allocate memory for TACK reply pkt and set header
             ot_pkt* tack_reply = ot_pkt_create();
@@ -336,15 +357,6 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
                    bytes_serialized, 
                    inet_ntop(AF_INET, &address.sin_addr.s_addr, ipbuf, INET_ADDRSTRLEN));
 
-
-            if (!srv_add_cli_ctx(srv_ctx, recv_pkt)) 
-            {
-              fprintf(stderr, "[ot srv] failed to add cli ctx\n");
-              goto cleanup;
-            }
-
-            printf("[ot srv] successfully added client to srv ctable\n");
-
             break;
           }
         case TREN: 
@@ -356,6 +368,7 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
             if (!tren_pl_validate(srv_ctx, ptable, recv_pkt)) 
             {
               fprintf(stderr, "[ot srv] inbound tren error: one or more tren payloads are missing\n");
+
               // send tinv due to malformed tren
               ot_pkt* tinv_reply = ot_pkt_create();
               tinv_reply_build(tinv_reply, recv_pkt->header, SRV_IP, recv_pkt->header.cli_ip);
@@ -368,10 +381,10 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
             }
 
             // Handle expired clients
-            char macstr[24] = {0};
-            bytes_to_macstr(recv_pkt->header.cli_mac, macstr);
             if (cli_expiry_check(srv_ctx, recv_pkt->header)) 
             {
+              char macstr[24] = {0};
+              bytes_to_macstr(recv_pkt->header.cli_mac, macstr);
               printf("[ot srv] client %s is expired, deleting...\n", macstr);
               ht_delete(srv_ctx->ctable, macstr);
 
@@ -496,8 +509,7 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
               goto cleanup;
             }
 
-            // Begin sending a cpush pkt
-
+            // Pull credential from srv otable
             char* pl_uname = ht_get(ptable, "PL_UNAME");
 
             // Pull credentials
@@ -564,7 +576,7 @@ static bool srv_add_cli_ctx(ot_srv_ctx* sc, ot_pkt* pkt)
   time_t curr_time;
   time(&curr_time);
 
-  ot_cli_ctx cc = ot_cli_ctx_create(pkt->header, TACK, curr_time + etime, curr_time + rtime);
+  ot_cli_ctx cc = ot_cli_ctx_create(pkt->header, curr_time + etime, curr_time + rtime);
 
   return (strcmp(ht_set_cli_ctx(sc->ctable, macstr, cc), macstr) == 0);
 }

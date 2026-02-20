@@ -38,17 +38,15 @@ int main(void)
   uint32_t TEST_SRV_IP = inet_addr("192.168.100.1");
   uint32_t TEST_CLI_IP = inet_addr("1.100.168.192");
 
-  ot_pkt_header TEST_HEADER = ot_pkt_header_create(TEST_SRV_IP, TEST_CLI_IP,  TEST_BYTES_SRV_MAC, TEST_BYTES_CLI_MAC, TEST_EXP_TIME, TEST_RENEW_TIME);
-  ot_cli_state_t TEST_STATE = TACK;
-
+  ot_pkt_header TEST_HEADER = ot_pkt_header_create(TEST_SRV_IP, TEST_CLI_IP,  
+                                                   TEST_BYTES_SRV_MAC, TEST_BYTES_CLI_MAC, 
+                                                   TEST_EXP_TIME, TEST_RENEW_TIME);
   printf("\n---- BEGIN SRV TESTS ----\n");
 
 
   // Client context creation
-  ot_cli_ctx cli_ctx_res = ot_cli_ctx_create(TEST_HEADER, TEST_STATE, TEST_CTX_EXP_TIME, TEST_CTX_RENEW_TIME);
+  ot_cli_ctx cli_ctx_res = ot_cli_ctx_create(TEST_HEADER, TEST_CTX_EXP_TIME, TEST_CTX_RENEW_TIME);
   EXPECT(memcmp(&(cli_ctx_res.header), &TEST_HEADER, sizeof(ot_pkt_header)) == 0, "[cli ctx] header initialization");
-  EXPECT(cli_ctx_res.state == TEST_STATE, "[cli ctx] state initialization");
-  
   // Server metadata creation
   ot_srv_ctx_mdata srv_ctx_mdata_res = ot_srv_ctx_mdata_create(TEST_PORT, TEST_SRV_IP, TEST_BYTES_SRV_MAC);
   EXPECT(srv_ctx_mdata_res.port == TEST_PORT, "[srv ctx mdata] port initialization");
