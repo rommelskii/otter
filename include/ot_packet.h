@@ -36,6 +36,19 @@ typedef struct ot_pkt
   ot_payload *payload; 
 } ot_pkt;
 
+typedef enum 
+{
+  TREQ,
+  TACK,
+  TINV,
+  TREN,
+  TPRV,
+  CPULL,
+  CPUSH,
+  CINV,
+  UNKN
+} ot_cli_state_t;
+
 typedef enum {
   PL_STATE,
   PL_SRV_IP,
