@@ -6,6 +6,7 @@
 */
 
 #include "ot_server.h"
+#include "ot_context.h"
 #include "testing_utils.h"
 
 #include <stdlib.h>

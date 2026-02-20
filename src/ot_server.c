@@ -1,6 +1,5 @@
 #include "ot_server.h"
 
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -11,11 +10,8 @@
 #include <assert.h>
 
 #include "ht.h"
+#include "ot_context.h"
 #include "otfile_utils.h"
-
-#define SRV_PORT 7192
-#define MAX_RECV_SIZE 2048
-
 
 /**
  * Private Implementations
@@ -85,137 +81,6 @@ static void cpush_reply_build(ot_pkt* cpush_reply, ot_pkt_header cpush_hd, uint3
 // PL_ETIME, PL_RTIME) for a valid TPRV reply to a client.
 static void tprv_reply_build(ot_pkt* tprv_reply, ot_pkt_header tprv_hd, uint32_t srv_ip, 
                              uint32_t cli_ip, uint32_t exp_time, uint32_t renew_time);
-
-/**
- * Private method wrappers for ht API
- */
-static const char* ht_set_cli_ctx(ht* ctable, const char* macstr, ot_cli_ctx cc)
-{
-  return ht_set(&ctable, macstr, &cc, sizeof(cc));
-}
-
-static ot_cli_ctx ht_get_cli_ctx(ht* ctable, const char* macstr)
-{
-  ot_cli_ctx* ret = ht_get(ctable, macstr);
-
-  if (ret == NULL)
-  {
-    ot_cli_ctx failret = {0};
-    failret.state = UNKN;
-    return failret;
-  }
-
-  return *ret;
-}
-
-/**
- * Context initializers
- */
-// Creates a server context metadata object
-ot_srv_ctx_mdata ot_srv_ctx_mdata_create(const int PORT, const uint32_t SRV_IP, uint8_t* SRV_MAC)
-{
-  ot_srv_ctx_mdata ret = {0};
-
-  ret.port = PORT;
-  ret.sockfd = 0;
-  ret.srv_ip = SRV_IP;
-  memcpy(ret.srv_mac, SRV_MAC, 6);
-
-  return ret;
-}
-
-// Allocates memory for a client context and creates it
-ot_cli_ctx ot_cli_ctx_create(ot_pkt_header h, time_t exp_time, time_t renew_time)
-{
-  ot_cli_ctx pcc = {0};
-
-  // Proceed to copying values to new and allocated client context
-  memcpy(&(pcc.header), &h, sizeof(ot_pkt_header));
-
-  pcc.ctx_exp_time = exp_time;
-  pcc.ctx_renew_time = renew_time;
-
-  return pcc;
-}
-
-// Allocates memory for a server context and creates it
-ot_srv_ctx* ot_srv_ctx_create(ot_srv_ctx_mdata sc_mdata) 
-{
-  // Check if we can allocate memory for a new server context
-  ot_srv_ctx* psc = malloc(sizeof(ot_srv_ctx));
-  if (psc == NULL)
-  {
-    fprintf(stderr, "ot_psc_ctx_create error: out of memory");
-    free(psc);
-    return NULL;
-  }
-
-  // Set the server metadata
-  memcpy(&(psc->sc_mdata), &sc_mdata, sizeof(ot_srv_ctx_mdata));
-
-  // Allocate memory for hash tables
-  psc->ctable = ht_create(HT_DEF_SZ);
-  psc->otable = ht_create(HT_DEF_SZ);
-
-  return psc;
-}
-
-/**
-* Client context getters/setters
-*/
-// Inserts a client context into a server's ctable
-const char* ot_srv_set_cli_ctx(ot_srv_ctx* sc, const char* macstr, ot_cli_ctx cc)
-{
-  if (sc == NULL || macstr == NULL) return NULL;
-
-  if (strlen(macstr) != 17) return NULL;
-
-  return ht_set_cli_ctx(sc->ctable, macstr, cc);
-}
-
-// Finds a client context from a server's ctable and returns it
-ot_cli_ctx ot_srv_get_cli_ctx(ot_srv_ctx* sc, const char* macstr)
-{
-  ot_cli_ctx failret = {0};
-  failret.state = UNKN;
-
-  if (sc == NULL || macstr == NULL)
-  {
-    return failret;
-  }
-
-  return ht_get_cli_ctx(sc->ctable, macstr);
-}
-
-/**
-* Destructors
-*/
-// Frees a server context and its ctable to memory
-void ot_srv_ctx_destroy(ot_srv_ctx** os) 
-{
-  if (os == NULL) return;
-
-  ot_srv_ctx* osc = *os; 
-
-  if (osc->ctable != NULL)
-  {
-    ht_destroy(osc->ctable);
-    osc->ctable = NULL;
-  }
-
-  if (osc->otable != NULL)
-  {
-    ht_destroy(osc->otable);
-    osc->otable = NULL;
-  }
-
-  free(*os);
-
-  *os = NULL;
-
-  return;
-}
-
 // Runs the server loop
 void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC) 
 {
@@ -234,18 +99,18 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
 
   address.sin_family = AF_INET;
   address.sin_addr.s_addr = INADDR_ANY;
-  address.sin_port = htons(SRV_PORT);
+  address.sin_port = htons(DEF_PORT);
 
   bind(server_fd, (struct sockaddr *)&address, sizeof(address));
   listen(server_fd, 5);
 
   // Build server context metadata and allocate memory for server context
-  ot_srv_ctx_mdata srv_mdata = ot_srv_ctx_mdata_create(SRV_PORT, SRV_IP, SRV_MAC);
+  ot_srv_ctx_mdata srv_mdata = ot_srv_ctx_mdata_create(DEF_PORT, SRV_IP, SRV_MAC);
   ot_srv_ctx* srv_ctx = ot_srv_ctx_create(srv_mdata);
 
   otfile_build("/Users/mels/projects/otter/tests/files/test.ot", &srv_ctx->otable); 
 
-  printf("[ot srv] Ready to receive bytes on port %d...\n", SRV_PORT);
+  printf("[ot srv] Ready to receive bytes on port %d...\n", DEF_PORT);
 
   // Start server runtime loop
   while (1) {
@@ -430,7 +295,9 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
               reference_cc->ctx_renew_time = curr_time + 0.75*DEF_EXP_TIME;
 
               // Replace existing entry in srv ctx with the new client context
-              if (strcmp(macstr, ht_set_cli_ctx(srv_ctx->ctable, macstr, *reference_cc)) != 0)
+              const char* set_cc = ht_set(&(srv_ctx->ctable), macstr,
+                                        reference_cc, sizeof(reference_cc));
+              if (strcmp(macstr, set_cc) != 0)
               {
                 fprintf(stderr, "[ot srv] failed to replace client context with mac %s\n", macstr);
                 //send_oerr(conn_fd);
@@ -548,7 +415,6 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
     }
   }
 
-server_close:
   printf("[ot srv] shutting down...\n");
   ot_srv_ctx_destroy(&srv_ctx);
   close(server_fd);
@@ -578,7 +444,8 @@ static bool srv_add_cli_ctx(ot_srv_ctx* sc, ot_pkt* pkt)
 
   ot_cli_ctx cc = ot_cli_ctx_create(pkt->header, curr_time + etime, curr_time + rtime);
 
-  return (strcmp(ht_set_cli_ctx(sc->ctable, macstr, cc), macstr) == 0);
+  const char* set_cc = ht_set(&(sc->ctable), macstr, &cc, sizeof(cc));
+  return (strcmp(set_cc, macstr) == 0);
 }
 
 static void err_pl_treq_validate(const char* pl) 
@@ -638,7 +505,9 @@ static bool cli_expiry_check(ot_srv_ctx* sc, ot_pkt_header hd)
   char macstr[24] = {0};
   bytes_to_macstr(hd.cli_mac, macstr);
 
-  ot_cli_ctx cc = ht_get_cli_ctx(sc->ctable, macstr);
+  ot_cli_ctx* pcc = ht_get(sc->ctable, macstr);
+  ot_cli_ctx cc = *pcc;
+
   if (cc.state == UNKN) return true;
   
   time_t ctx_exp_time = cc.ctx_exp_time;
@@ -692,8 +561,9 @@ static bool tren_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
   // Lastly, check if the client mac maps to an existing client context
   char macstr[24];
   bytes_to_macstr(pl_cli_mac, macstr);
-  ot_cli_ctx cc_get = ht_get_cli_ctx(sc->ctable, macstr);
-  if ( cc_get.state == UNKN ) return false;
+  ot_cli_ctx* cc_get = ht_get(sc->ctable, macstr);
+  ot_cli_ctx cc = *cc_get;
+  if ( cc.state == UNKN ) return false;
 
   return true;
 }
@@ -734,8 +604,9 @@ static bool cpull_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
   // Lastly, check if the client mac maps to an existing client context
   char macstr[24];
   bytes_to_macstr(recv_pkt->header.cli_mac, macstr);
-  ot_cli_ctx cc_get = ht_get_cli_ctx(sc->ctable, macstr);
-  if ( cc_get.state == UNKN ) return false;
+  ot_cli_ctx* cc_get = ht_get(sc->ctable, macstr);
+  ot_cli_ctx cc = *cc_get;
+  if ( cc.state == UNKN ) return false;
 
   return true;
 }
@@ -754,8 +625,9 @@ static bool tren_renewal_time_check(ot_srv_ctx* sc, uint8_t* cli_mac, time_t cur
   char macstr[24] = {0};
   bytes_to_macstr(cli_mac, macstr);
 
-  ot_cli_ctx cc;
-  if((cc = ht_get_cli_ctx(srv_ctable, macstr)).state == UNKN) 
+  ot_cli_ctx* cc_get = ht_get(srv_ctable, macstr);
+  ot_cli_ctx cc = *cc_get;
+  if(cc.state == UNKN) 
   {
     fprintf(stderr, "[ot srv] client %s does not have a context\n", macstr);
     return false;
