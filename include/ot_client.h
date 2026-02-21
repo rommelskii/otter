@@ -29,7 +29,7 @@
 // has already authenticated, a TINV reply will be received. 
 //
 // Also updates the context lease and expiry time as a result of authentication.
-void ot_cli_auth(ot_cli_ctx ctx);
+void ot_cli_auth(ot_cli_ctx* ctx);
 
 // Renews the client expiry with the server
 //
@@ -37,7 +37,7 @@ void ot_cli_auth(ot_cli_ctx ctx);
 // server. If successful, the server sends back a TPRV pkt containing the new (most likely default) 
 // expiry and renew times. The client context replaces its old values with the ones received from the
 // server.
-void ot_cli_renew(ot_cli_ctx ctx);
+void ot_cli_renew(ot_cli_ctx* ctx);
 
 // Pulls credentials from a server using the username and sets it to the destination psk string 
 //
