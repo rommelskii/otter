@@ -18,11 +18,17 @@
  */
 static bool srv_add_cli_ctx(ot_srv_ctx* sc, ot_pkt* pkt);
 
-static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
-
 static ssize_t send_pkt(int* sockfd, ot_pkt* pkt, uint8_t* buf, size_t buflen);
 
 static bool cli_expiry_check(ot_srv_ctx* sc, ot_pkt_header hd);
+
+// Validates a deserialized TREQ pkt.
+//
+// Populates the parse table (ptable) with existing payloads and checks whether the correct
+// payloads exist and correlate with the header
+//
+// Returns true if the pkt is valid, otherwise false.
+static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
 
 // Validates a deserialized TREN pkt.
 //
@@ -515,6 +521,12 @@ static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
     err_pl_treq_validate("PL_CLI_MAC");
     return false;
   }
+
+  char macstr[24] = {0};
+  bytes_to_macstr(recv_pkt->header.cli_mac, macstr);
+
+  ot_cli_ctx* check_cc = ht_get(sc->ctable, macstr);
+  if (check_cc != NULL) return false; // TREQs are not valid for clients that already exist in the ctable
 
   return true;
 }
