@@ -21,6 +21,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "ot_context.h" //<< for context structures and methods
+#include <stdbool.h>
 
 // Authenticates the client with the server
 //
@@ -29,7 +30,7 @@
 // has already authenticated, a TINV reply will be received. 
 //
 // Also updates the context lease and expiry time as a result of authentication.
-void ot_cli_auth(ot_cli_ctx* ctx);
+bool ot_cli_auth(ot_cli_ctx* ctx);
 
 // Renews the client expiry with the server
 //
@@ -37,7 +38,7 @@ void ot_cli_auth(ot_cli_ctx* ctx);
 // server. If successful, the server sends back a TPRV pkt containing the new (most likely default) 
 // expiry and renew times. The client context replaces its old values with the ones received from the
 // server.
-void ot_cli_renew(ot_cli_ctx* ctx);
+bool ot_cli_renew(ot_cli_ctx* ctx);
 
 // Pulls credentials from a server using the username and sets it to the destination psk string 
 //
@@ -47,7 +48,7 @@ void ot_cli_renew(ot_cli_ctx* ctx);
 // password is found, it receives a CINV designated for the desired username
 //
 // If the client is not authenticated, a CINV is also provided with the username being "UNKN"
-void ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk);
+bool ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk);
 
 
 
