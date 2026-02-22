@@ -178,6 +178,7 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
         case TREQ:
           {
             // Check if the mandatory fields (cli_ip and cli_mac) are in the payloads
+            // or if client already exists
             if (!pl_treq_validate(srv_ctx, ptable, recv_pkt)) 
             {
               ot_pkt* tinv_reply = ot_pkt_create();
@@ -187,6 +188,11 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
                 fprintf(stderr, "[ot srv] failed to send tinv to %s\n",
                         inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
               }
+              printf("[ot srv] replied TINV to %s, client already exists or malformed treq\n",
+                     inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+
+              ot_pkt_destroy(&tinv_reply);
+
               goto cleanup; 
             }
 
