@@ -18,11 +18,17 @@
  */
 static bool srv_add_cli_ctx(ot_srv_ctx* sc, ot_pkt* pkt);
 
-static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
-
 static ssize_t send_pkt(int* sockfd, ot_pkt* pkt, uint8_t* buf, size_t buflen);
 
 static bool cli_expiry_check(ot_srv_ctx* sc, ot_pkt_header hd);
+
+// Validates a deserialized TREQ pkt.
+//
+// Populates the parse table (ptable) with existing payloads and checks whether the correct
+// payloads exist and correlate with the header
+//
+// Returns true if the pkt is valid, otherwise false.
+static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
 
 // Validates a deserialized TREN pkt.
 //
