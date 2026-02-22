@@ -522,6 +522,12 @@ static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
     return false;
   }
 
+  char macstr[24] = {0};
+  bytes_to_macstr(recv_pkt->header.cli_mac, macstr);
+
+  ot_cli_ctx* check_cc = ht_get(sc->ctable, macstr);
+  if (check_cc != NULL) return false; // TREQs are not valid for clients that already exist in the ctable
+
   return true;
 }
 
