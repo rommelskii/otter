@@ -12,10 +12,10 @@
 #pragma pack(push, 1)
 typedef struct ot_pkt_header
 {
-  uint32_t  srv_ip;
-  uint32_t  cli_ip;
   uint8_t   srv_mac[6];
   uint8_t   cli_mac[6];
+  uint32_t  srv_ip;
+  uint32_t  cli_ip;
   uint32_t  exp_time;
   uint32_t  renew_time;
 } ot_pkt_header;
@@ -25,9 +25,9 @@ typedef struct ot_pkt_header
 typedef struct ot_payload
 {
   uint8_t                     type; 
-  void*                       value;
   uint8_t                     vlen;
   struct ot_payload*          next;
+  void*                       value;
 } ot_payload;
 
 typedef struct ot_pkt 
