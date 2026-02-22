@@ -785,8 +785,6 @@ int test_unknown_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
 static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac) 
 {
   // Build TREQ header 
-  //uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
-  //uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
   ot_pkt_header treq_hd = ot_pkt_header_create(SRV_IP, CLI_IP,  srv_mac, cli_mac, 0, 0);
 
   // Build TREQ pkt
@@ -815,7 +813,6 @@ static int test_treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_type, &pl_cli_ip_value, pl_cli_ip_vlen);
 
   // Specify TREQ cli_mac payload
-  // pl_create(PL_CLI_MAC, MAC*, sizeof(MAC))
 
   uint8_t pl_cli_mac_type = (uint8_t)PL_CLI_MAC;
   uint8_t pl_cli_mac_value[6] = {0}; 

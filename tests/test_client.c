@@ -50,8 +50,8 @@ int main(void)
   printf("[ot cli] verifying non-expiry...\n");
   sleep(4); //<< 21 seconds should have passed
 
-  char psk_buf[256] = {0};
-  ot_cli_pull(cli_ctx, UNAME, psk_buf);
+  char* psk_buf = malloc(2048*sizeof(char));
+  ot_cli_pull(cli_ctx, UNAME, &psk_buf);
   EXPECT(strlen(psk_buf) != 0, "[ot cli renew] cpull+renewal test");
 
   printf("\n----END CLIENT OPERATION TESTS----\n");
