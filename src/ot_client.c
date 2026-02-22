@@ -79,11 +79,23 @@ void ot_cli_auth(ot_cli_ctx* ctx)
     fprintf(stderr, "ot_cli_auth error: no state payload\n");
     goto cleanup;
   }
+
+
+  // Check if reply pkt is TACK
+  if (*pl_state == TINV) 
+  {
+    fprintf(stderr, "ot_cli_auth error: server has denied treq\n");
+    goto cleanup;
+  } else if (*pl_state != TACK) {
+    fprintf(stderr, "ot_cli_auth error: received an improper reply\n");
+    goto cleanup;
+  }
   if (pl_srv_ip == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no srv ip payload\n");
     goto cleanup;
   }
+
   if (pl_cli_ip == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no cli ip payload\n");
@@ -105,12 +117,6 @@ void ot_cli_auth(ot_cli_ctx* ctx)
     goto cleanup;
   }
 
-  // Check if reply pkt is TACK
-  if (*pl_state != TACK) 
-  {
-    fprintf(stderr, "ot_cli_auth error: reply pkt is not tack\n");
-    goto cleanup;
-  }
 
   // Header comparison
   if (*pl_srv_ip != tack_pkt->header.srv_ip) 
