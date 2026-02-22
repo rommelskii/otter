@@ -291,12 +291,21 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
 
               // Reference the client context 
               ot_cli_ctx* reference_cc = ht_get(srv_ctx->ctable, macstr);
-              reference_cc->ctx_exp_time = curr_time + DEF_EXP_TIME;
-              reference_cc->ctx_renew_time = curr_time + 0.75*DEF_EXP_TIME;
+              ot_cli_ctx updated_cc = *reference_cc;
+
+              time(&curr_time);
+              updated_cc.ctx_exp_time = curr_time + DEF_EXP_TIME;
+              updated_cc.ctx_renew_time = curr_time + 0.75*DEF_EXP_TIME;
+              if (strcmp(macstr, "00:00:00:ab:ab:ff") == 0)
+              {
+                updated_cc.ctx_exp_time = curr_time + 20;
+                updated_cc.ctx_renew_time = curr_time + 0.75*20;
+              }
 
               // Replace existing entry in srv ctx with the new client context
+              ht_delete(srv_ctx->ctable, macstr);
               const char* set_cc = ht_set(&(srv_ctx->ctable), macstr,
-                                        reference_cc, sizeof(reference_cc));
+                                        &updated_cc, sizeof(updated_cc));
               if (strcmp(macstr, set_cc) != 0)
               {
                 fprintf(stderr, "[ot srv] failed to replace client context with mac %s\n", macstr);
@@ -324,6 +333,9 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
                         inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
                 goto cleanup;
               }
+              printf("[ot srv] sent TPRV reply (%zuB) to %s\n",
+                     bytes_serialized,
+                     inet_ntop(AF_INET,&address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
             }
 
             break;
@@ -353,6 +365,10 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
 
               printf("[ot srv] malformed cpull: client %s, replied with CINV\n",
                      inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+
+              ot_pkt_destroy(&cinv_reply);
+
+              goto cleanup;
             }
 
             // Handle expired clients
@@ -360,7 +376,7 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
             bytes_to_macstr(recv_pkt->header.cli_mac, macstr);
             if (cli_expiry_check(srv_ctx, recv_pkt->header)) 
             {
-              printf("[ot srv] client %s is expired, deleting...\n", macstr);
+              printf("[ot srv] client %s for cpull is expired, deleting...\n", macstr);
               ht_delete(srv_ctx->ctable, macstr);
 
               // send tinv due to expired client
@@ -373,6 +389,8 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
                         inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
               }
 
+              ot_pkt_destroy(&cinv_reply);
+
               goto cleanup;
             }
 
@@ -380,22 +398,41 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
             char* pl_uname = ht_get(ptable, "PL_UNAME");
 
             // Pull credentials
-            ot_pkt* cpush_reply = ot_pkt_create();
             char* get_psk = ht_get(srv_ctx->otable, pl_uname);
-            if (get_psk == NULL)
+            if (get_psk == NULL) // If user does not exist, reply with CINV
             {
-              cinv_reply_build(cpush_reply, recv_pkt->header, SRV_IP, recv_pkt->header.cli_ip,
+              ot_pkt* cinv_reply = ot_pkt_create();
+              cinv_reply_build(cinv_reply, recv_pkt->header, SRV_IP, recv_pkt->header.cli_ip,
                                 pl_uname);
-            } else {
-              cpush_reply_build(cpush_reply, recv_pkt->header, SRV_IP, recv_pkt->header.cli_ip,
-                                pl_uname, get_psk);
-            }
+              if (send_pkt(&conn_fd, cinv_reply, rx_buffer, sizeof rx_buffer) < 0) 
+              {
+                fprintf(stderr, "[ot srv] failed to send cinv to %s due to null entry for uname=%s\n", pl_uname,
+                        inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+              }
 
-            if (send_pkt(&conn_fd, cpush_reply, rx_buffer, sizeof rx_buffer) < 0) 
+              fprintf(stderr, "[ot srv] no entry with uname=%s, sent CINV to %s\n", pl_uname,
+                      inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+
+
+              ot_pkt_destroy(&cinv_reply);
+
+              goto cleanup;
+            } 
+
+            ot_pkt* cpush_reply = ot_pkt_create();
+            cpush_reply_build(cpush_reply, recv_pkt->header, SRV_IP, recv_pkt->header.cli_ip,
+                              pl_uname, get_psk);
+
+            ssize_t bytes_serialized;
+            if ((bytes_serialized = send_pkt(&conn_fd, cpush_reply, rx_buffer, sizeof rx_buffer)) < 0) 
             {
               fprintf(stderr, "[ot srv] failed to send cpush to %s\n",
                       inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
             }
+            
+            printf("[ot srv] sent CPUSH reply (%zuB) to %s\n",
+                   bytes_serialized,
+                   inet_ntop(AF_INET,&address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
 
             break;
           }
@@ -500,15 +537,13 @@ static ssize_t send_pkt(int* sockfd, ot_pkt* pkt, uint8_t* buf, size_t buflen)
 
 static bool cli_expiry_check(ot_srv_ctx* sc, ot_pkt_header hd)
 {
-  if (sc == NULL) return false;
+  if (sc == NULL) return true;
 
   char macstr[24] = {0};
   bytes_to_macstr(hd.cli_mac, macstr);
 
   ot_cli_ctx* pcc = ht_get(sc->ctable, macstr);
   ot_cli_ctx cc = *pcc;
-
-  if (cc.state == UNKN) return true;
   
   time_t ctx_exp_time = cc.ctx_exp_time;
 
