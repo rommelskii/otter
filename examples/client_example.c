@@ -21,7 +21,13 @@ int main(void)
   ot_pkt_header hd = ot_pkt_header_create(srv_ip, dummy_cli_ip, empty_mac, dummy_cli_mac, 0, 0);
   ot_cli_ctx cc = ot_cli_ctx_create(hd, 0, 0);
 
-  ot_cli_auth(&cc);
+  if (!ot_cli_auth(&cc)) 
+  {
+    //char ipbuf[INET_ADDRSTRLEN] = {0};
+    //fprintf(stderr, "ot_cli_auth error: failed to authenticate with srv=%s\n",
+           // inet_ntop(AF_INET, &srv_ip, (char*)ipbuf, INET_ADDRSTRLEN));
+    return 1;
+  }
 
   char buf[2048] = {0};
   char* psk_buf = NULL;
@@ -33,9 +39,7 @@ int main(void)
     fgets(buf, sizeof buf, stdin);
     buf[strcspn(buf, "\n")] = '\0';
 
-    ot_cli_pull(cc, buf, &psk_buf);
-
-    if (psk_buf == NULL)
+    if (!ot_cli_pull(cc, buf, &psk_buf)) 
     {
       printf("user %s not found in database\n", buf);
       continue;
