@@ -23,31 +23,14 @@
 #include "ht.h" // for creating the credential table
 #include "otfile_utils.h" // for otfile_build
 #include "ot_packet.h" // for ot pkt stuff
+#include "ot_server.h"
 
-int main(int argc, char** argv) 
+int main(void) 
 {
-  if (argc != 2) {
-    fprintf(stderr, "Usage: %s <filename>\n", argv[0]);
-    return 1;
-  }
-  
-  // Initialize the hash table for storing otfile entries
-  struct ht* cred_table = ht_create(16); 
+  uint8_t srv_mac[6] = {0x12,0x23,0x44,0x55,0x66,0x77};
+  uint32_t srv_ip = inet_addr("127.0.0.1");
 
-  // Load otfile into memory
-  otfile_build(argv[1], &cred_table); 
-
-  printf("Successfully loaded %zu entries from %s.\n", ht_length(cred_table), argv[1]);
-
-  //////////////////////////////////////////////////
-  // Insert server logic here...
-  //////////////////////////////////////////////////
-
-  // Free hash table to memory after business logic
-  ht_destroy(cred_table);
-
-  printf("Freed hash table to memory.\n");
-  printf("Server closing...\n");
+  ot_srv_run(srv_ip, srv_mac);
 
   return 0;
 }
