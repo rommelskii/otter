@@ -72,7 +72,7 @@ bool ot_cli_auth(ot_cli_ctx* ctx)
 
 
   // Get mandatory TACK entries
-  ot_cli_state_t* pl_state = ht_get(ptable, "PL_STATE");
+  uint8_t* raw_pl_state = ht_get(ptable, "PL_STATE");
   uint32_t* pl_srv_ip = ht_get(ptable, "PL_SRV_IP");
   uint32_t* pl_cli_ip = ht_get(ptable, "PL_CLI_IP");
   uint32_t* pl_etime = ht_get(ptable, "PL_ETIME");
@@ -80,20 +80,22 @@ bool ot_cli_auth(ot_cli_ctx* ctx)
   uint8_t* pl_srv_mac = ht_get(ptable, "PL_SRV_MAC");
 
   // Nullity checks
-  if (pl_state == NULL) 
+  if (raw_pl_state == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no state payload\n");
     retval = false;
     goto cleanup;
   }
 
+  ot_cli_state_t pl_state = *raw_pl_state;
+
   // Check if reply pkt is TACK
-  if (*pl_state == TINV) 
+  if (pl_state == TINV) 
   {
     fprintf(stderr, "ot_cli_auth error: server has denied treq\n");
     retval = false;
     goto cleanup;
-  } else if (*pl_state != TACK) {
+  } else if (pl_state != TACK) {
     fprintf(stderr, "ot_cli_auth error: received an improper reply\n");
     retval = false;
     goto cleanup;
@@ -232,14 +234,14 @@ bool ot_cli_renew(ot_cli_ctx* ctx)
 
 
   // Get mandatory TACK entries
-  ot_cli_state_t* pl_state = ht_get(ptable, "PL_STATE");
+  uint8_t* raw_pl_state = ht_get(ptable, "PL_STATE");
   uint32_t* pl_srv_ip = ht_get(ptable, "PL_SRV_IP");
   uint32_t* pl_cli_ip = ht_get(ptable, "PL_CLI_IP");
   uint32_t* pl_etime = ht_get(ptable, "PL_ETIME");
   uint32_t* pl_rtime = ht_get(ptable, "PL_RTIME");
 
   // Nullity checks
-  if (pl_state == NULL) 
+  if (raw_pl_state == NULL) 
   {
     fprintf(stderr, "ot_cli_renew error: no state payload\n");
     retval = false;
@@ -270,9 +272,10 @@ bool ot_cli_renew(ot_cli_ctx* ctx)
     goto cleanup;
   }
 
+  ot_cli_state_t pl_state = *raw_pl_state;
 
   // Check if reply is TPRV
-  if (*pl_state != TPRV) 
+  if (pl_state != TPRV) 
   {
     fprintf(stderr, "ot_cli_renew error: reply pkt is not tprv\n");
     retval = false;
@@ -383,14 +386,14 @@ bool ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
 
 
   // Get mandatory CPUSH entries
-  ot_cli_state_t* pl_state = ht_get(ptable, "PL_STATE");
+  uint8_t* raw_pl_state = ht_get(ptable, "PL_STATE");
   uint32_t* pl_srv_ip = ht_get(ptable, "PL_SRV_IP");
   uint32_t* pl_cli_ip = ht_get(ptable, "PL_CLI_IP");
   char* pl_uname = ht_get(ptable, "PL_UNAME");
   char* pl_psk = ht_get(ptable, "PL_PSK");
 
   // Nullity checks
-  if (pl_state == NULL) 
+  if (raw_pl_state == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no pl_state payload\n");
     retval = false;
@@ -415,14 +418,16 @@ bool ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
     goto cleanup;
   }
 
+  ot_cli_state_t pl_state = *raw_pl_state;
+
   // Check if reply pkt is CPUSH
-  if (*pl_state != CPUSH) 
+  if (pl_state != CPUSH) 
   {
     fprintf(stderr, "ot_cli_cpull error: reply pkt is not cpush\n");
     retval = false;
     goto cleanup;
   } 
-  if (*pl_state == CINV) // User does not exist in database (dest_psk will be null)
+  if (pl_state == CINV) // User does not exist in database (dest_psk will be null)
   {
     retval = false;
     goto cleanup;
