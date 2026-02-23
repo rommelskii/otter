@@ -27,6 +27,7 @@
 
 // Standard Library Headers
 #include <stdbool.h>
+#include <stdint.h>
 
 // Authenticates the client with the server
 //

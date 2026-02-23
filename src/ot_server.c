@@ -114,7 +114,7 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
   ot_srv_ctx_mdata srv_mdata = ot_srv_ctx_mdata_create(DEF_PORT, SRV_IP, SRV_MAC);
   ot_srv_ctx* srv_ctx = ot_srv_ctx_create(srv_mdata);
 
-  otfile_build("/Users/mels/projects/otter/tests/files/test.ot", &srv_ctx->otable); 
+  otfile_build("/home/mels/otter/tests/files/test.ot", &srv_ctx->otable); 
 
   printf("[ot srv] Ready to receive bytes on port %d...\n", DEF_PORT);
 
@@ -165,15 +165,17 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
       pl_parse_table_build(&ptable, recv_pkt->payload);
 
       // Extract the PL_STATE payload
-      ot_cli_state_t* recv_state = ht_get(ptable, "PL_STATE");
-      if (recv_state == NULL) 
+      uint8_t* raw_recv_state = ht_get(ptable, "PL_STATE");
+      if (raw_recv_state == NULL) 
       {
         fprintf(stderr, "[ot srv] pkt recv err: no PL_STATE payload\n");
         goto cleanup;
       }
 
+      ot_cli_state_t recv_state = (ot_cli_state_t)(*raw_recv_state);
+
       // State table for the defined cli state from msgtype
-      switch(*recv_state)
+      switch(recv_state)
       {
         case TREQ:
           {

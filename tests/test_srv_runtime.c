@@ -37,6 +37,7 @@
 // Project Headers
 //
 #include "ot_server.h"
+#include "ot_packet.h"
 #include "testing_utils.h"
 
 // 
@@ -190,10 +191,11 @@ int test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
   pl_parse_table_build(&parse_table, reply_head);
 
   // Check expected TACK reply with TREQ input
-  ot_cli_state_t* expected_tack = ht_get(parse_table, "PL_STATE");
-  EXPECT(expected_tack != NULL, "[tack reply] pl_state presence");
-  if (expected_tack == NULL) return -1;
-  EXPECT(*expected_tack == TACK, "[treq reply] reply type (TACK) check");
+  uint8_t* raw_expected_tack = ht_get(parse_table, "PL_STATE");
+  EXPECT(raw_expected_tack != NULL, "[tack reply] pl_state presence");
+  if (raw_expected_tack == NULL) return -1;
+  ot_cli_state_t expected_tack = *raw_expected_tack;
+  EXPECT(expected_tack == TACK, "[treq reply] reply type (TACK) check");
 
   // Check expected srv ip 
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
@@ -272,10 +274,11 @@ int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
 
   // Start payload parsing
   // Check expected TACK reply with TREQ input
-  ot_cli_state_t* expected_tprv = ht_get(parse_table, "PL_STATE");
-  EXPECT(expected_tprv != NULL, "[tprv reply] pl_state presence");
-  if (expected_tprv == NULL) return -1;
-  EXPECT(*expected_tprv == TPRV, "[tprv reply] pl_state value check");
+  uint8_t* raw_expected_tprv = ht_get(parse_table, "PL_STATE");
+  EXPECT(raw_expected_tprv != NULL, "[tprv reply] pl_state presence");
+  if (raw_expected_tprv == NULL) return -1;
+  ot_cli_state_t expected_tprv = *raw_expected_tprv; 
+  EXPECT(expected_tprv == TPRV, "[tprv reply] pl_state value check");
 
   // Check expected srv ip (should be same as the one sent in the header of the TREN pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
@@ -349,10 +352,11 @@ int test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
 
   // Check expected CPUSH reply 
   printf("[cpull reply] checking for PL_STATE entry in parse table... ");
-  ot_cli_state_t* expected_cpush = ht_get(parse_table, "PL_STATE");
-  EXPECT(expected_cpush != NULL, "[cpush reply] pl_state presence");
-  if (expected_cpush == NULL) return -1;
-  EXPECT(*expected_cpush == CPUSH, "[cpush reply] pl_state value");
+  uint8_t* raw_expected_cpush = ht_get(parse_table, "PL_STATE");
+  EXPECT(raw_expected_cpush != NULL, "[cpush reply] pl_state presence");
+  if (raw_expected_cpush == NULL) return -1;
+  ot_cli_state_t expected_cpush = *raw_expected_cpush;
+  EXPECT(expected_cpush == CPUSH, "[cpush reply] pl_state value");
 
   // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
@@ -426,9 +430,11 @@ int test_expired_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
 
   // Start payload parsing
   // Check expected TINV reply with TREN input
-  ot_cli_state_t* expected_tinv = ht_get(parse_table, "PL_STATE");
-  EXPECT(expected_tinv != NULL, "[expired tinv reply] pl_state presence");
-  EXPECT(*expected_tinv == TINV, "[expired tinv reply] pl_state value");
+  uint8_t* raw_expected_tinv = ht_get(parse_table, "PL_STATE");
+  EXPECT(raw_expected_tinv != NULL, "[expired tinv reply] pl_state presence");
+  if (raw_expected_tinv == NULL) return -1;
+  ot_cli_state_t expected_tinv = *raw_expected_tinv;
+  EXPECT(expected_tinv == TINV, "[expired tinv reply] pl_state value");
 
   // Check expected srv ip (should be same as the one sent in the header of the expired TREN pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
@@ -490,10 +496,11 @@ int test_expired_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
   // Start payload parsing
 
   // Check expected CINV reply with CPULL input
-  ot_cli_state_t* expected_cinv = ht_get(parse_table, "PL_STATE");
-  EXPECT(expected_cinv != NULL, "[expired cinv reply] pl_state presence");
-  if (expected_cinv == NULL) return -1;
-  EXPECT(*expected_cinv == CINV, "[expired cinv reply] pl_state value");
+  uint8_t* raw_expected_cinv = ht_get(parse_table, "PL_STATE");
+  EXPECT(raw_expected_cinv != NULL, "[expired cinv reply] pl_state presence");
+  if (raw_expected_cinv == NULL) return -1;
+  ot_cli_state_t expected_cinv = *raw_expected_cinv;
+  EXPECT(expected_cinv == CINV, "[expired cinv reply] pl_state value");
 
 
   // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
@@ -564,10 +571,11 @@ int test_invalid_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
   // Start payload parsing
   
   // Check expected TINV reply with TREN input
-  ot_cli_state_t* expected_tinv = ht_get(parse_table, "PL_STATE");
-  EXPECT(expected_tinv != NULL, "[invalid tinv reply] pl_state presence");
-  if (expected_tinv == NULL) return -1;
-  EXPECT(*expected_tinv == TINV, "[invalid tinv reply] pl_state value");
+  uint8_t* raw_expected_tinv = ht_get(parse_table, "PL_STATE");
+  EXPECT(raw_expected_tinv != NULL, "[invalid tinv reply] pl_state presence");
+  if (raw_expected_tinv == NULL) return -1;
+  ot_cli_state_t expected_tinv = *raw_expected_tinv;
+  EXPECT(expected_tinv == TINV, "[invalid tinv reply] pl_state value");
 
   // Check expected srv ip (should be same as the one sent in the header of the expired TREN pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
@@ -627,10 +635,11 @@ int test_invalid_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
   // Start payload parsing
 
   // Check expected CINV reply with CPULL input
-  ot_cli_state_t* expected_cinv = ht_get(parse_table, "PL_STATE");
-  EXPECT(expected_cinv != NULL, "[invalid cinv reply] pl_state presence");
-  if (expected_cinv == NULL) return -1;
-  EXPECT(*expected_cinv == CINV, "[invalid cinv reply] pl_state value");
+  uint8_t* raw_expected_cinv = ht_get(parse_table, "PL_STATE");
+  EXPECT(raw_expected_cinv != NULL, "[invalid cinv reply] pl_state presence");
+  if (raw_expected_cinv == NULL) return -1;
+  ot_cli_state_t expected_cinv = *raw_expected_cinv;
+  EXPECT(expected_cinv == CINV, "[invalid cinv reply] pl_state value");
 
 
   // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
@@ -687,10 +696,11 @@ int test_unknown_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
   // Start payload parsing
   
   // Check expected TINV reply with TREN input
-  ot_cli_state_t* expected_tinv = ht_get(parse_table, "PL_STATE");
-  EXPECT(expected_tinv != NULL, "[unknown tinv reply] pl_state presence");
-  if (expected_tinv == NULL) return -1;
-  EXPECT(*expected_tinv == TINV, "[unknown tinv reply] pl_state value");
+  uint8_t* raw_expected_tinv = ht_get(parse_table, "PL_STATE");
+  EXPECT(raw_expected_tinv != NULL, "[unknown tinv reply] pl_state presence");
+  if (raw_expected_tinv == NULL) return -1;
+  ot_cli_state_t expected_tinv = *raw_expected_tinv;
+  EXPECT(expected_tinv == TINV, "[unknown tinv reply] pl_state value");
 
   // Check expected srv ip (should be same as the one sent in the header of the expired TREN pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
@@ -742,10 +752,11 @@ int test_unknown_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
   // Start payload parsing
 
   // Check expected CINV reply with CPULL input
-  ot_cli_state_t* expected_cinv = ht_get(parse_table, "PL_STATE");
-  EXPECT(expected_cinv != NULL, "[unknown cpull reply] pl_state presence");
-  if (expected_cinv == NULL) return -1;
-  EXPECT(*expected_cinv == CINV, "[unknown cpull reply] pl_state value");
+  uint8_t* raw_expected_cinv = ht_get(parse_table, "PL_STATE");
+  EXPECT(raw_expected_cinv != NULL, "[unknown cpull reply] pl_state presence");
+  if (raw_expected_cinv == NULL) return -1;
+  ot_cli_state_t expected_cinv = *raw_expected_cinv;
+  EXPECT(expected_cinv == CINV, "[unknown cpull reply] pl_state value");
 
 
   // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)

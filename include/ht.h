@@ -6,6 +6,8 @@
 // Opaque type definition
 typedef struct ht ht;
 
+#define HT_DEF_SZ 8
+
 // Prototypes
 ht* ht_create(const size_t CAPACITY);
 void ht_destroy(ht* table);
