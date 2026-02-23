@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-set(SRC_LIST main.c)
+set(SRC_LIST ot_srv.c)
 set(LIB_LIST ot_client.c ot_context.c ot_server.c ot_packet.c tk.c ht.c otfile_utils.c)
 
 add_library(ot_core STATIC ${LIB_LIST})
