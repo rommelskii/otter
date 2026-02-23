@@ -42,8 +42,8 @@ bool ot_cli_auth(ot_cli_ctx* ctx)
   if (res < 0 || tack_pkt == NULL)
   {
     fprintf(stderr, "failed to send treq to server\n");
-    retval = false;
-    goto cleanup;
+    ot_pkt_destroy(&tack_pkt);
+    return false;
   }
 
   // Build parse table
@@ -86,7 +86,6 @@ bool ot_cli_auth(ot_cli_ctx* ctx)
     retval = false;
     goto cleanup;
   }
-
 
   // Check if reply pkt is TACK
   if (*pl_state == TINV) 
@@ -203,7 +202,6 @@ bool ot_cli_renew(ot_cli_ctx* ctx)
   if (res < 0 || tprv_pkt == NULL)
   {
     fprintf(stderr, "failed to send treq to server\n");
-    ot_pkt_destroy(&tprv_pkt);
     retval = false;
     return retval;
   }
@@ -552,7 +550,11 @@ static int treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP,
   } 
 
   // Send the serialized TREQ to server
-  send(sockfd, buf, bytes_serialized, 0);
+  if (send(sockfd, buf, bytes_serialized, 0) < 0) 
+  {
+    perror("send failed");
+    return -1;
+  }
 
   ssize_t bytes_received;
   // Wait for reply
