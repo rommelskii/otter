@@ -1,0 +1,135 @@
+
+---- BEGIN PKT TESTS ----
+[PASSED] (str to bytes) srv mac
+[PASSED] (str to bytes) cli mac
+[PASSED] (bytes to str) srv mac
+[PASSED] (bytes to str) cli mac
+[PASSED] (pkt header) srv ip
+[PASSED] (pkt header) cli ip
+[PASSED] (pkt header) srv mac
+[PASSED] (pkt header) cli mac
+[PASSED] (pkt header) exp time
+[PASSED] (pkt header) renew time
+[PASSED] (pkt) header init
+[PASSED] (pkt) payload init
+[PASSED] (pkt) header set
+[PASSED] (pkt) payload append & integrity test
+[PASSED] (pkt serialization) serialization test
+[PASSED] (pkt serialization) deserialization test
+[PASSED] (pkt serialization) serialization/deserialization bytes equality
+[PASSED] (pkt serialization) structure equality test
+[PASSED] (pkt destructor) nullity test
+---- END PKT TESTS ----
+
+---- BEGIN SRV TESTS ----
+[PASSED] [cli ctx] header initialization
+[PASSED] [srv ctx mdata] port initialization
+[PASSED] [srv ctx mdata] sockfd initialization
+[PASSED] [srv ctx mdata] srv ip initialization
+[PASSED] [srv ctx mdata] srv mac initialization
+[PASSED] [srv ctx] ctable initialization
+[PASSED] [srv ctx] otable initialization
+[PASSED] [ctable] set functionality
+[PASSED] [ctable] get functionality
+[PASSED] [srv ctx destructor] nullity test
+---- END SRV TESTS ----
+
+---- BEGIN TREQ TESTS ----
+[PASSED] [tack reply] pl_state presence
+[PASSED] [treq reply] reply type (TACK) check
+[PASSED] [tack reply] pl_srv_ip presence
+[PASSED] [treq reply] srv ip check
+[PASSED] [tack reply] pl_srv_mac presence
+[PASSED] [tack reply] srv mac check
+[PASSED] [tack reply] pl_cli_ip presence
+[PASSED] [treq reply] cli ip check
+[PASSED] [tack reply] pl_etime presence
+[PASSED] [tack reply] pl_etime value
+[PASSED] [tack reply] pl_rtime presence
+[PASSED] [tack reply] pl_rtime value
+---- END TREQ TESTS ----
+---- BEGIN TREN TESTS ----
+[tren test] waiting 16 seconds to hit renew window...
+DONE
+[PASSED] [tprv reply] pl_state presence
+[PASSED] [tprv reply] pl_state value check
+[PASSED] [tprv reply] pl_srv_ip presence
+[PASSED] [tprv reply] pl_srv_ip value
+[PASSED] [tprv reply] pl_cli_ip presence
+[PASSED] [tprv reply] pl_cli_ip value
+[PASSED] [tprv reply] pl_etime presence
+[PASSED] [tprv reply] pl_etime value
+[PASSED] [tprv reply] pl_rtime presence
+[PASSED] [tprv reply] pl_rtime value
+---- END TREN TESTS ----
+---- BEGIN CPULL TESTS ----
+[cpull reply] checking for PL_STATE entry in parse table... [PASSED] [cpush reply] pl_state presence
+[PASSED] [cpush reply] pl_state value
+[PASSED] [cpush reply] pl_srv_ip presence
+[PASSED] [cpush reply] pl_srv_ip value
+[PASSED] [cpush reply] pl_cli_ip presence
+[PASSED] [cpush reply] pl_cli_ip value
+[PASSED] [cpush reply] pl_uname presence
+[PASSED] [cpush reply] pl_uname value
+[PASSED] [cpush reply] pl_psk presence
+[PASSED] [cpush reply] pl_psk value
+---- END CPULL TESTS ----
+---- BEGIN INVALID TREN TESTS ----
+[invalid tren test] waiting 3 seconds to hit renew window... 
+DONE
+[PASSED] [invalid tinv reply] pl_state presence
+[PASSED] [invalid tinv reply] pl_state value
+[PASSED] [invalid tinv reply] pl_srv_ip presence
+[PASSED] [invalid tinv reply] srv ip check
+[PASSED] [invalid tinv reply] pl_cli_ip presence
+[PASSED] [invalid tinv reply] pl_cli_ip value
+---- END INVALID TREN TESTS ----
+---- BEGIN INVALID CPULL TESTS ----
+[PASSED] [invalid cinv reply] pl_state presence
+[PASSED] [invalid cinv reply] pl_state value
+[PASSED] [invalid cinv reply] pl_srv_ip presence
+[PASSED] [invalid cpull reply] pl_srv_ip value
+[PASSED] [invalid cinv reply] pl_cli_ip presence
+[PASSED] [invalid cinv reply] pl_cli_ip value
+[PASSED] [invalid cinv reply] pl_uname presence
+[PASSED] [invalid cinv reply] pl_uname value
+---- END INVALID CPULL TESTS ----
+---- BEGIN EXPIRED TREN TESTS ----
+[test_expired_tren] waiting 21 seconds for client to expire...
+DONE
+[PASSED] [expired tinv reply] pl_state presence
+[PASSED] [expired tinv reply] pl_state value
+[PASSED] [expired tinv reply] pl_srv_ip presence
+[PASSED] [expired tinv reply] pl_srv_ip value
+[PASSED] [expired tinv reply] pl_cli_ip presence
+[PASSED] [expired tinv reply] pl_cli_ip value
+---- END EXPIRED TREN TESTS ----
+---- BEGIN EXPIRED CPULL TESTS ----
+[PASSED] [expired cinv reply] pl_state presence
+[PASSED] [expired cinv reply] pl_state value
+[PASSED] [expired cinv reply] pl_srv_ip presence
+[PASSED] [expired cinv reply] pl_srv_ip value
+[PASSED] [expired cinv reply] pl_cli_ip presence
+[PASSED] [expired cinv reply] pl_cli_ip value
+[PASSED] [expired cinv reply] pl_uname presence
+[PASSED] [expired cinv reply] pl_uname value
+---- END EXPIRED CPULL TESTS ----
+---- BEGIN UNKNOWN TREN TESTS ----
+[PASSED] [unknown tinv reply] pl_state presence
+[PASSED] [unknown tinv reply] pl_state value
+[PASSED] [unknown tinv reply] pl_srv_ip presence
+[PASSED] [unknown tinv reply] pl_srv_ip value
+[PASSED] [unknown tren reply] pl_cli_ip presence
+[PASSED] [unknown tren reply] pl_cli_ip value
+---- END UNKNOWN TREN TESTS ----
+---- BEGIN UNKNOWN CPULL TESTS ----
+[PASSED] [unknown cpull reply] pl_state presence
+[PASSED] [unknown cpull reply] pl_state value
+[PASSED] [unknown cpull reply] pl_srv_ip presence
+[PASSED] [unknown cpull reply] pl_srv_ip value
+[PASSED] [unknown cpull reply] pl_cli_ip presence
+[PASSED] [unknown cpull reply] pl_cli_ip value
+[PASSED] [unknown cpull reply] pl_uname presence
+[PASSED] [unknown cpull reply] pl_uname value
+---- END UNKNOWN CPULL TESTS ----
+[test srv runtime] all tests passed!
