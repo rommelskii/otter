@@ -1,26 +1,31 @@
+/* 
+ * Otter Protocol (C) Rommel John Ronduen 2026
+ *
+ * file: ot_client.h
+ *
+ * Contains public API for Otter clients
+ *
+ * Clients can utilize this API to create a client context in their programs. Client contexts
+ * serve as data buffers throughout the lifecycle of the client. To mutate the client context,
+ * the client must utilize the API's socket functions to authenticate, renew, or to pull information
+ * from the server. 
+ *
+ * Recall that the ot_cli_ctx object stores the header containing the srv_ip, cli_ip, 
+ * expiry time, and the renew time. All consequent functions involving the client context
+ * will utilize it for storing the information throughout the client lifecycle.
+ *
+ * In terms of time, it has its own capability of tracking if it is within bounds of renewal. 
+ * Ideally, all socket functions must be time aware whether the client can renew or has already
+ * expired.
+ */
+
 #ifndef OT_CLIENT_H_
 #define OT_CLIENT_H_
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// file: ot_client.h
-//
-// Public API for Otter clients.
-//
-// Clients can utilize this API to create a client context in their programs. Client contexts
-// serve as data buffers throughout the lifecycle of the client. To mutate the client context,
-// the client must utilize the API's socket functions to authenticate, renew, or to pull information
-// from the server. 
-//
-// Recall that the ot_cli_ctx object stores the header containing the srv_ip, cli_ip, 
-// expiry time, and the renew time. All consequent functions involving the client context
-// will utilize it for storing the information throughout the client lifecycle.
-//
-// In terms of time, it has its own capability of tracking if it is within bounds of renewal. 
-// Ideally, all socket functions must be time aware whether the client can renew or has already
-// expired.
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
+// Project Headers
 #include "ot_context.h" //<< for context structures and methods
+
+// Standard Library Headers
 #include <stdbool.h>
 
 // Authenticates the client with the server
