@@ -42,7 +42,6 @@ bool ot_cli_auth(ot_cli_ctx* ctx)
   if (res < 0 || tack_pkt == NULL)
   {
     fprintf(stderr, "failed to send treq to server\n");
-    ot_pkt_destroy(&tack_pkt);
     retval = false;
     goto cleanup;
   }
