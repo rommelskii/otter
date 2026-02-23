@@ -11,6 +11,8 @@ scratch/
 *.scratch
 scratch
 
+# Clangd
+.cache
 
 # Ignore executables 
 bin/
