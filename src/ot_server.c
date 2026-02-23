@@ -114,7 +114,7 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
   ot_srv_ctx_mdata srv_mdata = ot_srv_ctx_mdata_create(DEF_PORT, SRV_IP, SRV_MAC);
   ot_srv_ctx* srv_ctx = ot_srv_ctx_create(srv_mdata);
 
-  otfile_build("/home/mels/otter/tests/files/test.ot", &srv_ctx->otable); 
+  otfile_build("/home/mels/projects/otter/tests/files/test.ot", &srv_ctx->otable); 
 
   printf("[ot srv] Ready to receive bytes on port %d...\n", DEF_PORT);
 
