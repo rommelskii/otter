@@ -177,6 +177,8 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
       {
         case TREQ:
           {
+            printf("[ot srv] TREQ from %s\n",
+                   inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
             // Check if the mandatory fields (cli_ip and cli_mac) are in the payloads
             // or if client already exists
             if (!pl_treq_validate(srv_ctx, ptable, recv_pkt)) 
@@ -241,6 +243,9 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
             // We utilize tren_pl_validate to pull the mandatory payloads from the deserialized recv pkt
             // Check for PL_CLI_MAC and PL_CLI_IP and check if they are the same from ptable
             // Returns false if TREN payload is invalid
+
+            printf("[ot srv] TREN from %s\n",
+                   inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
 
             if (!tren_pl_validate(srv_ctx, ptable, recv_pkt)) 
             {
@@ -354,6 +359,8 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
           }
         case CPULL: 
           {
+            printf("[ot srv] CPULL from %s\n",
+                   inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
             // validate the inbound cpull packet
             if (!cpull_pl_validate(srv_ctx, ptable, recv_pkt)) 
             {
@@ -587,6 +594,7 @@ static bool tren_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
   }
 
   // Check mandatory fields in ptable
+  ot_cli_state_t* pl_state = ht_get(ptable, "PL_STATE");
   uint32_t* pl_srv_ip = ht_get(ptable, "PL_SRV_IP");
   uint32_t* pl_cli_ip = ht_get(ptable, "PL_CLI_IP");
   uint8_t* pl_cli_mac = ht_get(ptable, "PL_CLI_MAC");
@@ -615,7 +623,15 @@ static bool tren_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
   char macstr[24];
   bytes_to_macstr(pl_cli_mac, macstr);
   ot_cli_ctx* cc_get = ht_get(sc->ctable, macstr);
+  if (cc_get == NULL) 
+  {
+    fprintf(stderr, "[ot srv] pl_tren_validate warning: client %s does not exist\n", macstr);
+    return false;
+  }
+
+  // Check if client exists in the first place
   ot_cli_ctx cc = *cc_get;
+
   if ( cc.state == UNKN ) return false;
 
   return true;
@@ -658,7 +674,15 @@ static bool cpull_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
   char macstr[24];
   bytes_to_macstr(recv_pkt->header.cli_mac, macstr);
   ot_cli_ctx* cc_get = ht_get(sc->ctable, macstr);
+  if (cc_get == NULL) 
+  {
+    fprintf(stderr, "[ot srv] cpull_pl_validate warning: client %s does not exist\n", macstr);
+    return false;
+  }
+
+  // Check if client exists in the first place
   ot_cli_ctx cc = *cc_get;
+
   if ( cc.state == UNKN ) return false;
 
   return true;

@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -26,8 +27,10 @@ static int cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT,
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC API
 ////////////////////////////////////////////////////////////////////////////////
-void ot_cli_auth(ot_cli_ctx* ctx)
+bool ot_cli_auth(ot_cli_ctx* ctx)
 {
+  bool retval = true;
+
   ot_pkt* tack_pkt = ot_pkt_create();
   int res = treq_send(&tack_pkt, 
                       DEF_PORT, 
@@ -40,7 +43,7 @@ void ot_cli_auth(ot_cli_ctx* ctx)
   {
     fprintf(stderr, "failed to send treq to server\n");
     ot_pkt_destroy(&tack_pkt);
-    return;
+    return false;
   }
 
   // Build parse table
@@ -51,16 +54,19 @@ void ot_cli_auth(ot_cli_ctx* ctx)
   if (tack_pkt->header.srv_ip != ctx->header.srv_ip)
   {
     fprintf(stderr, "ot_cli_auth error: tack did not come from intended srv ip\n");
+    retval = false;
     goto cleanup;
   }
   if (tack_pkt->header.cli_ip != ctx->header.cli_ip)
   {
     fprintf(stderr, "ot_cli_auth error: inbound tack was not for this client ip\n");
+    retval = false;
     goto cleanup;
   }
   if (memcmp(tack_pkt->header.cli_mac, ctx->header.cli_mac, 6) != 0)
   {
     fprintf(stderr, "ot_cli_auth error: inbound tack was not for this client mac\n");
+    retval = false;
     goto cleanup;
   }
 
@@ -77,43 +83,50 @@ void ot_cli_auth(ot_cli_ctx* ctx)
   if (pl_state == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no state payload\n");
+    retval = false;
     goto cleanup;
   }
-
 
   // Check if reply pkt is TACK
   if (*pl_state == TINV) 
   {
     fprintf(stderr, "ot_cli_auth error: server has denied treq\n");
+    retval = false;
     goto cleanup;
   } else if (*pl_state != TACK) {
     fprintf(stderr, "ot_cli_auth error: received an improper reply\n");
+    retval = false;
     goto cleanup;
   }
   if (pl_srv_ip == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no srv ip payload\n");
+    retval = false;
     goto cleanup;
   }
 
   if (pl_cli_ip == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no cli ip payload\n");
+    retval = false;
     goto cleanup;
   }
   if (pl_etime == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no etime payload\n");
+    retval = false;
     goto cleanup;
   }
   if (pl_rtime == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no rtime payload\n");
+    retval = false;
     goto cleanup;
   }
   if (pl_srv_mac == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no srv_mac payload\n");
+    retval = false;
     goto cleanup;
   }
 
@@ -122,26 +135,31 @@ void ot_cli_auth(ot_cli_ctx* ctx)
   if (*pl_srv_ip != tack_pkt->header.srv_ip) 
   {
     fprintf(stderr, "ot_cli_auth error: srv ip payload mismatch with header\n");
+    retval = false;
     goto cleanup;
   }
   if (*pl_cli_ip != tack_pkt->header.cli_ip)
   {
     fprintf(stderr, "ot_cli_auth error: cli ip payload mismatch with header\n");
+    retval = false;
     goto cleanup;
   }
   if (memcmp(pl_srv_mac, tack_pkt->header.srv_mac, 6) != 0) 
   {
     fprintf(stderr, "ot_cli_auth error: srv mac payload mismatch with header\n");
+    retval = false;
     goto cleanup;
   }
   if (*pl_etime == 0)
   {
     fprintf(stderr, "ot_cli_auth error: improper exp time (<=0)\n");
+    retval = false;
     goto cleanup;
   }
   if (*pl_rtime == 0)
   {
     fprintf(stderr, "ot_cli_auth error: improper renew time (<=0)\n");
+    retval = false;
     goto cleanup;
   }
 
@@ -166,11 +184,13 @@ cleanup:
   ot_pkt_destroy(&tack_pkt);
   ht_destroy(ptable);
   ptable = NULL;
-  return;
+  return retval;
 }
 
-void ot_cli_renew(ot_cli_ctx* ctx)
+bool ot_cli_renew(ot_cli_ctx* ctx)
 {
+  bool retval = true;
+
   ot_pkt* tprv_pkt = ot_pkt_create();
   int res = tren_send(&tprv_pkt, 
                       DEF_PORT, 
@@ -182,8 +202,8 @@ void ot_cli_renew(ot_cli_ctx* ctx)
   if (res < 0 || tprv_pkt == NULL)
   {
     fprintf(stderr, "failed to send treq to server\n");
-    ot_pkt_destroy(&tprv_pkt);
-    return;
+    retval = false;
+    return retval;
   }
 
   // Build parse table
@@ -194,16 +214,19 @@ void ot_cli_renew(ot_cli_ctx* ctx)
   if (tprv_pkt->header.srv_ip != ctx->header.srv_ip)
   {
     fprintf(stderr, "ot_cli_renew error: tren did not come from intended srv ip\n");
+    retval = false;
     goto cleanup;
   }
   if (tprv_pkt->header.cli_ip != ctx->header.cli_ip)
   {
     fprintf(stderr, "ot_cli_renew error: inbound tprv was not for this client ip\n");
+    retval = false;
     goto cleanup;
   }
   if (memcmp(tprv_pkt->header.cli_mac, ctx->header.cli_mac, 6) != 0)
   {
     fprintf(stderr, "ot_cli_renew error: inbound tprv was not for this client mac\n");
+    retval = false;
     goto cleanup;
   }
 
@@ -219,26 +242,31 @@ void ot_cli_renew(ot_cli_ctx* ctx)
   if (pl_state == NULL) 
   {
     fprintf(stderr, "ot_cli_renew error: no state payload\n");
+    retval = false;
     goto cleanup;
   }
   if (pl_srv_ip == NULL) 
   {
     fprintf(stderr, "ot_cli_renew error: no srv ip payload\n");
+    retval = false;
     goto cleanup;
   }
   if (pl_cli_ip == NULL) 
   {
     fprintf(stderr, "ot_cli_renew error: no cli ip payload\n");
+    retval = false;
     goto cleanup;
   }
   if (pl_etime == NULL) 
   {
     fprintf(stderr, "ot_cli_renew error: no etime payload\n");
+    retval = false;
     goto cleanup;
   }
   if (pl_rtime == NULL) 
   {
     fprintf(stderr, "ot_cli_renew error: no rtime payload\n");
+    retval = false;
     goto cleanup;
   }
 
@@ -247,6 +275,7 @@ void ot_cli_renew(ot_cli_ctx* ctx)
   if (*pl_state != TPRV) 
   {
     fprintf(stderr, "ot_cli_renew error: reply pkt is not tprv\n");
+    retval = false;
     goto cleanup;
   }
 
@@ -254,31 +283,37 @@ void ot_cli_renew(ot_cli_ctx* ctx)
   if (*pl_srv_ip != tprv_pkt->header.srv_ip) 
   {
     fprintf(stderr, "ot_cli_renew error: srv ip payload mismatch with header\n");
+    retval = false;
     goto cleanup;
   }
   if (*pl_cli_ip != tprv_pkt->header.cli_ip)
   {
     fprintf(stderr, "ot_cli_renew error: cli ip payload mismatch with header\n");
+    retval = false;
     goto cleanup;
   }
   if (*pl_etime == tprv_pkt->header.exp_time)
   {
     fprintf(stderr, "ot_cli_renew error: exp time payload mismatch with header\n");
+    retval = false;
     goto cleanup;
   }
   if (*pl_rtime == tprv_pkt->header.renew_time)
   {
     fprintf(stderr, "ot_cli_renew error: renew time payload mismatch with header\n");
+    retval = false;
     goto cleanup;
   }
   if (*pl_etime == 0)
   {
     fprintf(stderr, "ot_cli_renew error: improper exp time (<=0)\n");
+    retval = false;
     goto cleanup;
   }
   if (*pl_rtime == 0)
   {
     fprintf(stderr, "ot_cli_renew error: improper renew time (<=0)\n");
+    retval = false;
     goto cleanup;
   }
 
@@ -300,11 +335,12 @@ cleanup:
   ot_pkt_destroy(&tprv_pkt);
   ht_destroy(ptable);
   ptable = NULL;
-  return;
+  return retval;
 }
 
-void ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
+bool ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
 {
+  bool retval = true;
   ot_pkt* cpush_pkt = ot_pkt_create();
   int res = cpull_send(&cpush_pkt, 
                        uname,
@@ -317,7 +353,8 @@ void ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
   {
     fprintf(stderr, "failed to send treq to server\n");
     ot_pkt_destroy(&cpush_pkt);
-    return;
+    retval = false;
+    return retval;
   }
 
   // Build parse table
@@ -328,16 +365,19 @@ void ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
   if (cpush_pkt->header.srv_ip != ctx.header.srv_ip)
   {
     fprintf(stderr, "ot_cli_cpull error: cpush did not come from intended srv ip\n");
+    retval = false;
     goto cleanup;
   }
   if (cpush_pkt->header.cli_ip != ctx.header.cli_ip)
   {
     fprintf(stderr, "ot_cli_cpull error: inbound cpush was not for this client ip\n");
+    retval = false;
     goto cleanup;
   }
   if (memcmp(cpush_pkt->header.cli_mac, ctx.header.cli_mac, 6) != 0)
   {
     fprintf(stderr, "ot_cli_cpull error: inbound cpush was not for this client mac\n");
+    retval = false;
     goto cleanup;
   }
 
@@ -353,21 +393,25 @@ void ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
   if (pl_state == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no pl_state payload\n");
+    retval = false;
     goto cleanup;
   }
   if (pl_srv_ip == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no srv ip payload\n");
+    retval = false;
     goto cleanup;
   }
   if (pl_cli_ip == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no cli ip payload\n");
+    retval = false;
     goto cleanup;
   }
   if (pl_uname == NULL) 
   {
     fprintf(stderr, "ot_cli_auth error: no uname payload\n");
+    retval = false;
     goto cleanup;
   }
 
@@ -375,10 +419,12 @@ void ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
   if (*pl_state != CPUSH) 
   {
     fprintf(stderr, "ot_cli_cpull error: reply pkt is not cpush\n");
+    retval = false;
     goto cleanup;
   } 
   if (*pl_state == CINV) // User does not exist in database (dest_psk will be null)
   {
+    retval = false;
     goto cleanup;
   }
 
@@ -386,21 +432,25 @@ void ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
   if (*pl_srv_ip != cpush_pkt->header.srv_ip) 
   {
     fprintf(stderr, "ot_cli_cpull error: srv ip payload mismatch with header\n");
+    retval = false;
     goto cleanup;
   }
   if (*pl_cli_ip != cpush_pkt->header.cli_ip)
   {
     fprintf(stderr, "ot_cli_cpull error: cli ip payload mismatch with header\n");
+    retval = false;
     goto cleanup;
   }
   if (strlen(pl_uname) == 0) 
   {
     fprintf(stderr, "ot_cli_cpull error: uname payload is empty\n");
+    retval = false;
     goto cleanup;
   }
   if (strlen(pl_psk) == 0) 
   {
     fprintf(stderr, "ot_cli_cpull error: psk payload is empty\n");
+    retval = false;
     goto cleanup;
   }
 
@@ -408,6 +458,7 @@ void ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
   if (strcmp(pl_uname, uname) != 0) 
   {
     fprintf(stderr, "ot_cli_cpull error: payload uname does not match intended uname\n");
+    retval = false;
     goto cleanup;
   }
 
@@ -418,9 +469,8 @@ cleanup:
   ot_pkt_destroy(&cpush_pkt);
   ht_destroy(ptable);
   ptable = NULL;
-  return;
 
-  return;
+  return retval;
 }
 
 static int treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, 
@@ -500,7 +550,11 @@ static int treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP,
   } 
 
   // Send the serialized TREQ to server
-  send(sockfd, buf, bytes_serialized, 0);
+  if (send(sockfd, buf, bytes_serialized, 0) < 0) 
+  {
+    perror("send failed");
+    return -1;
+  }
 
   ssize_t bytes_received;
   // Wait for reply

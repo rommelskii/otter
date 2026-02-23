@@ -69,57 +69,36 @@ static int test_invalid_cpull_send(ot_pkt** reply_pkt, const char* uname, const 
 // MAIN ENTRYPOINT
 int main(void) 
 {
-  pid_t pid = fork();  
-  
-  if (pid < 0) 
-  {
-    perror("fork failed");
-    ++tests_failed;
-    return 1;
-  }
-  
   const uint32_t SRV_IP = inet_addr("127.0.0.1");
   const uint32_t CLI_IP = inet_addr("127.0.0.1");
 
-  uint8_t SRV_MAC[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
-  uint8_t CLI_MAC[6] = {0xff,0xee,0xdd,0xcc,0xbb,0xaa};
+  uint8_t SRV_MAC[6] = {0x12,0x23,0x44,0x55,0x66,0x77};
+  uint8_t CLI_MAC_TREQ[6] = {0x01,0xee,0xdd,0xcc,0xbb,0xaa};
+  uint8_t CLI_MAC_CPULL[6] = {0x03,0xee,0xdd,0xcc,0xbb,0xaa};
+  uint8_t INV_CLI_MAC_CPULL[6] = {0x04,0xee,0xdd,0xcc,0xbb,0xaa};
+  uint8_t UNK_CLI_MAC_TREN[6] = {0x05,0xee,0xdd,0xcc,0xbb,0xaa};
+  uint8_t UNK_CLI_MAC_CPULL[6] = {0x06,0xee,0xdd,0xcc,0xbb,0xaa};
   uint8_t DBG_CLI_MAC[6] = {0x00, 0x00, 0x00, 0xab, 0xab, 0xff};
 
-  if (pid == 0)
-  {
-    ot_srv_run(SRV_IP, SRV_MAC); 
-    exit(0);
-  } else {
-    sleep(2);
-    // Valid tests
-    if (test_treq(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC) != 0) goto kill_proc;
-    if (test_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto kill_proc;
-    if (test_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC) != 0) goto kill_proc;
+  sleep(2);
+  // Valid tests
+  if (test_treq(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC_TREQ) != 0) goto check;
+  if (test_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto check;
+  if (test_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC_CPULL) != 0) goto check;
 
-    // Error-handling tests
-    if (test_invalid_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto kill_proc;
-    if (test_invalid_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC) != 0) goto kill_proc;
+  // Error-handling tests
+  if (test_invalid_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto check;
+  if (test_invalid_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, INV_CLI_MAC_CPULL) != 0) goto check;
 
-    // Expired client tests
-    if (test_expired_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto kill_proc;
-    if (test_expired_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto kill_proc;
+  // Expired client tests
+  if (test_expired_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto check;
+  if (test_expired_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto check;
 
-    // Unknown client tests
-    if (test_unknown_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC) != 0) goto kill_proc;
-    if (test_unknown_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC) != 0) goto kill_proc;
+  // Unknown client tests
+  if (test_unknown_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, UNK_CLI_MAC_TREN) != 0) goto check;
+  if (test_unknown_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, UNK_CLI_MAC_CPULL) != 0) goto check;
 
-kill_proc:
-    if (kill(pid, SIGTERM) == -1) 
-    {
-      perror("kill failed");
-    }
-
-    int status;
-    waitpid(pid, &status, 0);
-
-    printf("[test srv runtime] killed %d srv process\n", pid);
-  }
-
+check:
   if (tests_failed > 0) 
   {
     printf("[test srv runtime] one or more tests have failed! Exiting...\n");
@@ -1007,7 +986,6 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
 
   ot_payload* pl_state_payload = ot_payload_create(pl_state_type, &pl_state_value, pl_state_vlen);
 
-
   // Specify CPULL srv_ip payload 
   uint8_t pl_srv_ip_type = PL_SRV_IP;
   uint32_t pl_srv_ip_value = SRV_IP;
@@ -1015,14 +993,12 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
 
   ot_payload* pl_srv_ip_payload = ot_payload_create(pl_srv_ip_type, &pl_srv_ip_value, pl_srv_ip_vlen);
 
-
   // Specify TREN cli_ip payload 
   uint8_t pl_cli_ip_type = PL_CLI_IP;
   uint32_t pl_cli_ip_value = CLI_IP;
   uint8_t pl_cli_ip_vlen = (uint8_t)sizeof(pl_cli_ip_value);
 
   ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_type, &pl_cli_ip_value, pl_cli_ip_vlen);
-
   
   // Specify CPULL uname payload 
   uint8_t pl_uname_type = PL_UNAME;
