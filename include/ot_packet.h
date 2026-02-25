@@ -90,8 +90,10 @@ typedef enum
   TREN,         //<< Tether Renewal from client
   TPRV,         //<< Tether Provide from server
   TINV,         //<< Tether Invalid from server
-  CPULL,        //<< Credential Pull from client
-  CPUSH,        //<< Credential Push from server
+  //CPULL,        DEPRECATED//<< Credential Pull from client
+  //CPUSH,        DEPRECATED//<< Credential Push from server
+  CSEND,        //<< Credential Send (sends the hashed credentials)
+  CVAL,         //<< Credential Valid (acknowledges that the credentials exist)
   CINV,         //<< Credential Invalid from server
   UNKN          //<< Parse error type
 } ot_cli_state_t;
