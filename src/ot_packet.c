@@ -294,8 +294,9 @@ static const char* msgtype_to_str_ret(ot_pkt_msgtype_t msgtype)
     case PL_CLI_MAC: return "PL_CLI_MAC"; break;
     case PL_ETIME: return "PL_ETIME"; break;
     case PL_RTIME: return "PL_RTIME"; break;
-    case PL_UNAME: return "PL_UNAME"; break;
-    case PL_PSK: return "PL_PSK"; break;
+    case PL_HASH: return "PL_HASH"; break;
+    //DEPRECATED case PL_UNAME: return "PL_UNAME"; break;
+    //DEPRECATED case PL_PSK: return "PL_PSK"; break;
     case PL_UNKN: return "PL_UNKN"; break;
   }
 
