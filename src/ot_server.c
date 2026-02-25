@@ -88,7 +88,8 @@ static void cpush_reply_build(ot_pkt* cpush_reply, ot_pkt_header cpush_hd, uint3
 static void tprv_reply_build(ot_pkt* tprv_reply, ot_pkt_header tprv_hd, uint32_t srv_ip, 
                              uint32_t cli_ip, uint32_t exp_time, uint32_t renew_time);
 // Runs the server loop
-void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC) 
+// Note: PATH should be checked from the caller, no measures here in ot_srv_run
+void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC, const char* PATH)
 {
   time_t curr_time;
 
@@ -107,14 +108,19 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
   address.sin_addr.s_addr = INADDR_ANY;
   address.sin_port = htons(DEF_PORT);
 
-  bind(server_fd, (struct sockaddr *)&address, sizeof(address));
+  if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) 
+  {
+    perror("bind failed");
+    return;
+  }
+
   listen(server_fd, 5);
 
   // Build server context metadata and allocate memory for server context
   ot_srv_ctx_mdata srv_mdata = ot_srv_ctx_mdata_create(DEF_PORT, SRV_IP, SRV_MAC);
   ot_srv_ctx* srv_ctx = ot_srv_ctx_create(srv_mdata);
 
-  otfile_build("/home/mels/projects/otter/tests/files/test.ot", &srv_ctx->otable); 
+  otfile_build(PATH, &srv_ctx->otable); 
 
   printf("[ot srv] Ready to receive bytes on port %d...\n", DEF_PORT);
 
