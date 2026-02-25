@@ -2,10 +2,16 @@
 
 branch: auth
 
+## Purpose
 This branch is strictly for introducing the authentication functionality instead of 
-fetching credentials via CPUSH and CPULL.
+fetching credentials via CPUSH and CPULL. 
 
-## Credential Hashing
+Honestly, I was too caught up with the client tethering that I forgot
+the true purpose of the authentication portion of this project. Hence, this branch will rework the CPULL/CPUSH/CINV transactions
+to CSEND, CVAL, and CINV transactions.
+
+## Theoretical Appetizers
+### Credential Hashing
 The current working implementation of the Otter protocol only accounts for the tethering action. 
 The credential transactions, however, are just boilerplates. Recall that the point of the
 Otter protocol is to provide client-server tethering and authentication of user details upon
@@ -34,7 +40,7 @@ combination in a way that is not obvious. We can then convert the `final_hash` i
 and use it as a new `PL_HASH` msgtype to indicate that we are sending over user details to
 authenticate if it exists in the server. 
 
-## Authentication Tables
+### Authentication Tables
 
 Recall that in the server context, we have a context table for storing client contexts and a 
 otfile table that stores the entries from an otfile. Suppose now that we have received a CPULL
@@ -50,3 +56,10 @@ where we add a number to the hash itself for more obfuscation. In the event that
 already an existing atable and rehashing is needed, we just destroy the old atable and create
 a new one from the same otfile but with the new hash.
 
+## Game Plan
+
+Now that we have discussed the theory needed for implementing the revised credential transactions, we then 
+discuss how to implement it. We start by first deprecating the original the CPULL and CPUSH signatures and the tests involved
+with them. These are then replaced in to the credential send (CSEND) and credential valid (CVAL) replies. After which,
+we design new API functions for handling these, and we write the appropriate test cases for them. When all is well, 
+we then implement them.
