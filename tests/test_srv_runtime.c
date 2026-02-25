@@ -314,10 +314,10 @@ int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
   return 0;
 }
 
-int test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
+int test_csend(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
                uint8_t* SRV_MAC, uint8_t* CLI_MAC)
 {
-  printf("---- BEGIN CPULL TESTS ----\n");
+  printf("---- BEGIN CSEND TESTS ----\n");
   uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
   uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
 
@@ -336,55 +336,49 @@ int test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
   // Clean up reply pkt from TREQ/TACK handshake
   ot_pkt_destroy(&reply_pkt);
 
-  // Send a CPULL request to server and deserialize reply pkt 
+  // Send a CSEND request to server and deserialize reply pkt 
   reply_pkt = ot_pkt_create();
-  if (test_cpull_send(&reply_pkt, UNAME, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0) 
+  if (test_csend_send(&reply_pkt, UNAME, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0) 
   {
-    fprintf(stderr, "test_cpull_send: failed to deserialize reply from srv\n");
+    fprintf(stderr, "test_csend_send: failed to deserialize reply from srv\n");
     ot_pkt_destroy(&reply_pkt);
     return -1;
   }
 
-  // Build parse table from possible CPUSH reply pkt payloads
+  // Build parse table from possible CVAL reply pkt payloads
   ot_payload* reply_head = reply_pkt->payload;
   ht* parse_table = ht_create(8);
   pl_parse_table_build(&parse_table, reply_head);
 
-  // Check expected CPUSH reply 
+  // Check expected CVAL reply 
   printf("[cpull reply] checking for PL_STATE entry in parse table... ");
-  uint8_t* raw_expected_cpush = ht_get(parse_table, "PL_STATE");
-  EXPECT(raw_expected_cpush != NULL, "[cpush reply] pl_state presence");
-  if (raw_expected_cpush == NULL) return -1;
-  ot_cli_state_t expected_cpush = *raw_expected_cpush;
-  EXPECT(expected_cpush == CPUSH, "[cpush reply] pl_state value");
+  uint8_t* raw_expected_cval = ht_get(parse_table, "PL_STATE");
+  EXPECT(raw_expected_cval != NULL, "[cval reply] pl_state presence");
+  if (raw_expected_cval == NULL) return -1;
+  ot_cli_state_t expected_cval = *raw_expected_cval;
+  EXPECT(expected_cval == CVAL, "[cval reply] pl_state value");
 
   // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
-  EXPECT(expected_srv_ip != NULL, "[cpush reply] pl_srv_ip presence");
+  EXPECT(expected_srv_ip != NULL, "[cval reply] pl_srv_ip presence");
   if (expected_srv_ip == NULL) return -1;
-  EXPECT(*expected_srv_ip == SRV_IP, "[cpush reply] pl_srv_ip value");
+  EXPECT(*expected_srv_ip == SRV_IP, "[cval reply] pl_srv_ip value");
 
   // Check expected cli ip (should be same as the one sent in the header of the CPULL pkt)
   uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
-  EXPECT(expected_cli_ip != NULL, "[cpush reply] pl_cli_ip presence");
+  EXPECT(expected_cli_ip != NULL, "[cval reply] pl_cli_ip presence");
   if (expected_cli_ip == NULL) return -1;
-  EXPECT(*expected_cli_ip == CLI_IP, "[cpush reply] pl_cli_ip value");
+  EXPECT(*expected_cli_ip == CLI_IP, "[cval reply] pl_cli_ip value");
 
   // Check expected uname
-  const char* expected_uname = ht_get(parse_table, "PL_UNAME");
-  EXPECT(expected_uname != NULL, "[cpush reply] pl_uname presence");
-  if (expected_uname == NULL) return -1;
-  EXPECT(strcmp(expected_uname, UNAME) == 0, "[cpush reply] pl_uname value");
+  const uint64_t* expected_hash = ht_get(parse_table, "PL_HASH");
+  EXPECT(expected_hash != NULL, "[cval reply] pl_hash presence");
+  if (expected_hash == NULL) return -1;
+  EXPECT(expected_hash == HASH, "[cval reply] pl_hash value");
 
-  // Check expected PSK
-  const char* expected_psk = ht_get(parse_table, "PL_PSK");
-  EXPECT(expected_psk != NULL, "[cpush reply] pl_psk presence");
-  if (expected_psk == NULL) return -1;
-  EXPECT(strcmp(expected_psk, PSK) == 0, "[cpush reply] pl_psk value");
+  printf("---- END CVAL TESTS ----\n");
 
-  printf("---- END CPULL TESTS ----\n");
-
-  // Finally clean up reply pkt used for receiving the CPUSH pkt
+  // Finally clean up reply pkt used for receiving the CVAL pkt
   ot_pkt_destroy(&reply_pkt);
   ht_destroy(parse_table);
   parse_table = NULL;
