@@ -38,12 +38,12 @@ static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
 // Returns true if the pkt is valid, otherwise false.
 static bool tren_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
 
-// Validates a deserialized CPULL pkt
+// Validates a deserialized CSEND pkt
 //
-// Checks whether the mandatory payloads are in the CPULL pkt
+// Checks whether the mandatory payloads are in the CSEND pkt
 //
 // Returns true if the pkt is valid, otherwise false 
-static bool cpull_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
+static bool csend_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
 
 // Checks if the client sending a TREN pkt can renew. 
 //
@@ -365,12 +365,12 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC, const char* PATH)
 
             break;
           }
-        case CPULL: 
+        case CSEND: 
           {
-            printf("[ot srv] CPULL from %s\n",
+            printf("[ot srv] CSEND from %s\n",
                    inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
-            // validate the inbound cpull packet
-            if (!cpull_pl_validate(srv_ctx, ptable, recv_pkt)) 
+            // validate the inbound csend packet
+            if (!csend_pl_validate(srv_ctx, ptable, recv_pkt)) 
             {
               // if invalid, reply with cinv with uname (if it exists in payload)
               ot_pkt* cinv_reply = ot_pkt_create();
@@ -390,7 +390,7 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC, const char* PATH)
                         inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
               }
 
-              printf("[ot srv] malformed cpull: client %s, replied with CINV\n",
+              printf("[ot srv] malformed csend: client %s, replied with CINV\n",
                      inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
 
               ot_pkt_destroy(&cinv_reply);
@@ -403,7 +403,7 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC, const char* PATH)
             bytes_to_macstr(recv_pkt->header.cli_mac, macstr);
             if (cli_expiry_check(srv_ctx, recv_pkt->header)) 
             {
-              printf("[ot srv] client %s for cpull is expired, deleting...\n", macstr);
+              printf("[ot srv] client %s for csend is expired, deleting...\n", macstr);
               ht_delete(srv_ctx->ctable, macstr);
 
               // send tinv due to expired client
@@ -645,7 +645,7 @@ static bool tren_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
   return true;
 }
 
-static bool cpull_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
+static bool csend_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
 {
   if (sc == NULL || ptable == NULL || recv_pkt == NULL)
   {
@@ -660,17 +660,17 @@ static bool cpull_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
 
   if (pl_srv_ip == NULL)
   {
-    fprintf(stderr, "[ot srv] cpull validation error: pl_srv_ip not found\n");
+    fprintf(stderr, "[ot srv] csend validation error: pl_srv_ip not found\n");
     return false;
   }
   if (pl_cli_ip == NULL)
   {
-    fprintf(stderr, "[ot srv] cpull validation error: pl_cli_ip not found\n");
+    fprintf(stderr, "[ot srv] csend validation error: pl_cli_ip not found\n");
     return false;
   }
   if (pl_uname == NULL)
   {
-    fprintf(stderr, "[ot srv] cpull validation error: pl_uname not found\n");
+    fprintf(stderr, "[ot srv] csend validation error: pl_uname not found\n");
     return false;
   }
   
@@ -684,7 +684,7 @@ static bool cpull_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
   ot_cli_ctx* cc_get = ht_get(sc->ctable, macstr);
   if (cc_get == NULL) 
   {
-    fprintf(stderr, "[ot srv] cpull_pl_validate warning: client %s does not exist\n", macstr);
+    fprintf(stderr, "[ot srv] csend_pl_validate warning: client %s does not exist\n", macstr);
     return false;
   }
 
