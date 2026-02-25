@@ -77,8 +77,9 @@ typedef enum {
   PL_CLI_MAC,   //<< 6-byte client MAC address as a uint8_t array in network order
   PL_ETIME,     //<< uint32_t time offset to indicate expiry time
   PL_RTIME,     //<< uint32_t time offset to indicate renewal time
-  PL_UNAME,     //<< null-terminated string to indicate usernames
-  PL_PSK,       //<< null-terminated string to indicate passwords
+  PL_HASH,      //<< uint64_t hash digest of credentials
+  //PL_UNAME,     DEPRECATED //<< null-terminated string to indicate usernames
+  //PL_PSK,       DEPRECATED //<< null-terminated string to indicate passwords
   PL_UNKN,      //<< indicating a parse error during serialization/deserialization
 } ot_pkt_msgtype_t;
 
