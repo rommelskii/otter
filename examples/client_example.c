@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -29,26 +28,28 @@ int main(void)
     return 1;
   }
 
-  char buf[2048] = {0};
-  char* psk_buf = NULL;
+  char ubuf[2048] = {0};
+  char pbuf[2048] = {0};
 
   for (;;) 
   {
     printf("enter uname: ");
+    fgets(ubuf, sizeof ubuf, stdin);
+    ubuf[strcspn(ubuf, "\n")] = '\0';
 
-    fgets(buf, sizeof buf, stdin);
-    buf[strcspn(buf, "\n")] = '\0';
+    printf("enter psk: ");
+    fgets(pbuf, sizeof pbuf, stdin);
+    pbuf[strcspn(pbuf, "\n")] = '\0';
 
-    if (!ot_cli_pull(cc, buf, &psk_buf)) 
+    if (!ot_cli_send(cc, ubuf, pbuf)) 
     {
-      printf("user %s not found in database\n", buf);
-      continue;
+      printf("user %s not found in database\n", ubuf);
     } else {
-      printf("psk: %s\n", psk_buf);
+      printf("user exists!\n");
     }
 
-    free(psk_buf);
-    psk_buf = NULL;
+    memset(ubuf, 0, sizeof ubuf);
+    memset(pbuf, 0, sizeof ubuf);
   }
   return 0;
 }
