@@ -1,7 +1,6 @@
 #include "ot_context.h" 
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
@@ -13,6 +12,11 @@
 #include "ot_server.h" //<< for def port
 
 ////////////////////////////////////////////////////////////////////////////////
+// PRIVATE HASH
+////////////////////////////////////////////////////////////////////////////////
+static uint64_t cred_hash(const char* c, size_t clen);
+
+////////////////////////////////////////////////////////////////////////////////
 // PRIVATE FUNCTIONS FOR PACKET BUILDING
 ////////////////////////////////////////////////////////////////////////////////
 static int treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, 
@@ -21,7 +25,7 @@ static int treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP,
 static int tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, 
                      uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
 
-static int cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT, 
+static int csend_send(ot_pkt** reply_pkt, const char* uname, const char* psk, const int PORT, 
                       uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -341,17 +345,21 @@ cleanup:
   return retval;
 }
 
-bool ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
+bool ot_cli_send(ot_cli_ctx ctx, const char* uname, const char* psk)
 {
   bool retval = true;
   ot_pkt* cpush_pkt = ot_pkt_create();
-  int res = cpull_send(&cpush_pkt, 
+  int res = csend_send(&cpush_pkt, 
                        uname,
+                       psk,
                        DEF_PORT, 
                        ctx.header.srv_ip,
                        ctx.header.cli_ip,
                        ctx.header.srv_mac,
                        ctx.header.cli_mac);
+
+  uint64_t hashed_info = cred_hash(uname, strlen(uname)) + cred_hash(psk, strlen(psk));
+
   if (res < 0 || cpush_pkt == NULL)
   {
     fprintf(stderr, "failed to send treq to server\n");
@@ -367,19 +375,19 @@ bool ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
   // Header checks
   if (cpush_pkt->header.srv_ip != ctx.header.srv_ip)
   {
-    fprintf(stderr, "ot_cli_cpull error: cpush did not come from intended srv ip\n");
+    fprintf(stderr, "ot_cli_send error: cpush did not come from intended srv ip\n");
     retval = false;
     goto cleanup;
   }
   if (cpush_pkt->header.cli_ip != ctx.header.cli_ip)
   {
-    fprintf(stderr, "ot_cli_cpull error: inbound cpush was not for this client ip\n");
+    fprintf(stderr, "ot_cli_pull error: inbound cpush was not for this client ip\n");
     retval = false;
     goto cleanup;
   }
   if (memcmp(cpush_pkt->header.cli_mac, ctx.header.cli_mac, 6) != 0)
   {
-    fprintf(stderr, "ot_cli_cpull error: inbound cpush was not for this client mac\n");
+    fprintf(stderr, "ot_cli_pull error: inbound cpush was not for this client mac\n");
     retval = false;
     goto cleanup;
   }
@@ -389,8 +397,7 @@ bool ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
   uint8_t* raw_pl_state = ht_get(ptable, "PL_STATE");
   uint32_t* pl_srv_ip = ht_get(ptable, "PL_SRV_IP");
   uint32_t* pl_cli_ip = ht_get(ptable, "PL_CLI_IP");
-  char* pl_uname = ht_get(ptable, "PL_UNAME");
-  char* pl_psk = ht_get(ptable, "PL_PSK");
+  uint64_t* pl_hash = ht_get(ptable, "PL_HASH");
 
   // Nullity checks
   if (raw_pl_state == NULL) 
@@ -411,69 +418,67 @@ bool ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk)
     retval = false;
     goto cleanup;
   }
-  if (pl_uname == NULL) 
+  if (pl_hash == NULL) 
   {
-    fprintf(stderr, "ot_cli_auth error: no uname payload\n");
+    fprintf(stderr, "ot_cli_auth error: no hash payload\n");
     retval = false;
     goto cleanup;
   }
 
   ot_cli_state_t pl_state = *raw_pl_state;
 
-  // Check if reply pkt is CPUSH
-  if (pl_state != CPUSH) 
+  // Check if reply pkt is CINV or invalid. Return false 
+  if (pl_state != CVAL) 
   {
-    fprintf(stderr, "ot_cli_cpull error: reply pkt is not cpush\n");
+    if (pl_state == CINV)
+    {
+      fprintf(stderr, "ot_cli_send warning: cinv received from info\n");
+    } else {
+      fprintf(stderr, "ot_cli_send warning: reply pkt is not CVAL nor CINV\n");
+    }
+
     retval = false;
     goto cleanup;
   } 
-  if (pl_state == CINV) // User does not exist in database (dest_psk will be null)
-  {
-    retval = false;
-    goto cleanup;
-  }
 
   // Header comparison / credential sanity checks
   if (*pl_srv_ip != cpush_pkt->header.srv_ip) 
   {
-    fprintf(stderr, "ot_cli_cpull error: srv ip payload mismatch with header\n");
+    fprintf(stderr, "ot_cli_csend error: srv ip payload mismatch with header\n");
     retval = false;
     goto cleanup;
   }
   if (*pl_cli_ip != cpush_pkt->header.cli_ip)
   {
-    fprintf(stderr, "ot_cli_cpull error: cli ip payload mismatch with header\n");
-    retval = false;
-    goto cleanup;
-  }
-  if (strlen(pl_uname) == 0) 
-  {
-    fprintf(stderr, "ot_cli_cpull error: uname payload is empty\n");
-    retval = false;
-    goto cleanup;
-  }
-  if (strlen(pl_psk) == 0) 
-  {
-    fprintf(stderr, "ot_cli_cpull error: psk payload is empty\n");
+    fprintf(stderr, "ot_cli_csend error: cli ip payload mismatch with header\n");
     retval = false;
     goto cleanup;
   }
 
   // Check if the payload is actually for the intended uname
-  if (strcmp(pl_uname, uname) != 0) 
+  if (*pl_hash != hashed_info) 
   {
-    fprintf(stderr, "ot_cli_cpull error: payload uname does not match intended uname\n");
+    fprintf(stderr, "ot_cli_csend error: inbound hash does not match the intended hash\n");
     retval = false;
     goto cleanup;
   }
-
-  // CPUSH is valid beyond this point
-  *dest_psk = strdup(pl_psk);
 
 cleanup:
   ot_pkt_destroy(&cpush_pkt);
   ht_destroy(ptable);
   ptable = NULL;
+
+  return retval;
+}
+
+static uint64_t cred_hash(const char* c, size_t clen) {
+  uint64_t retval = 0;
+
+  size_t i=0;
+  for(;i<clen;++i)
+  {
+    retval += (uint64_t)c[i];
+  }
 
   return retval;
 }
@@ -683,26 +688,26 @@ static int tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP,
   return 0;
 }
 
-static int cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT, 
+static int csend_send(ot_pkt** reply_pkt, const char* uname, const char* psk, const int PORT, 
                            uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac)
 {
-  // Build CPULL header 
-  ot_pkt_header cpull_hd = ot_pkt_header_create(SRV_IP, CLI_IP,  srv_mac, 
+  // Build CSEND header 
+  ot_pkt_header csend_hd = ot_pkt_header_create(SRV_IP, CLI_IP,  srv_mac, 
                                                 cli_mac, DEF_EXP_TIME, DEF_EXP_TIME*0.75);
 
-  // Build CPULL pkt
-  ot_pkt* cpull_pkt = ot_pkt_create();
-  cpull_pkt->header = cpull_hd;
+  // Build csend pkt
+  ot_pkt* csend_pkt = ot_pkt_create();
+  csend_pkt->header = csend_hd;
 
-  // Specify CPULL state payload
+  // Specify CSEND state payload
   uint8_t pl_state_type = PL_STATE; //<< state to indicate that we are sending a TREN packet
-  uint8_t pl_state_value = (uint8_t)CPULL; 
+  uint8_t pl_state_value = (uint8_t)CSEND; 
   uint8_t pl_state_vlen = (uint8_t)sizeof(pl_state_value);
 
   ot_payload* pl_state_payload = ot_payload_create(pl_state_type, &pl_state_value, pl_state_vlen);
 
 
-  // Specify CPULL srv_ip payload 
+  // Specify CSEND srv_ip payload 
   uint8_t pl_srv_ip_type = PL_SRV_IP;
   uint32_t pl_srv_ip_value = SRV_IP;
   uint8_t pl_srv_ip_vlen = (uint8_t)sizeof(pl_srv_ip_value);
@@ -710,7 +715,7 @@ static int cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT,
   ot_payload* pl_srv_ip_payload = ot_payload_create(pl_srv_ip_type, &pl_srv_ip_value, pl_srv_ip_vlen);
 
 
-  // Specify TREN cli_ip payload 
+  // Specify CSEND cli_ip payload 
   uint8_t pl_cli_ip_type = PL_CLI_IP;
   uint32_t pl_cli_ip_value = CLI_IP;
   uint8_t pl_cli_ip_vlen = (uint8_t)sizeof(pl_cli_ip_value);
@@ -718,23 +723,23 @@ static int cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT,
   ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_type, &pl_cli_ip_value, pl_cli_ip_vlen);
 
   
-  // Specify CPULL uname payload 
-  uint8_t pl_uname_type = PL_UNAME;
-  char* pl_uname_value = (char*)uname;
-  uint8_t pl_uname_vlen = (uint8_t)strlen(pl_uname_value)+1;
+  // Specify CSEND hash payload 
+  uint8_t pl_hash_type = PL_HASH;
+  uint64_t pl_hash_value = cred_hash(uname, strlen(uname)) + cred_hash(psk, strlen(psk));
+  uint8_t pl_hash_vlen = (uint8_t)sizeof(pl_hash_value);
 
-  ot_payload* pl_uname_payload = ot_payload_create(pl_uname_type, pl_uname_value, pl_uname_vlen);
+  ot_payload* pl_hash_payload = ot_payload_create(pl_hash_type, &pl_hash_value, pl_hash_vlen);
   
-  // Create payload list in CPULL pkt
-  cpull_pkt->payload = ot_payload_append(cpull_pkt->payload, pl_state_payload);
-  cpull_pkt->payload = ot_payload_append(cpull_pkt->payload, pl_srv_ip_payload);
-  cpull_pkt->payload = ot_payload_append(cpull_pkt->payload, pl_cli_ip_payload);
-  cpull_pkt->payload = ot_payload_append(cpull_pkt->payload, pl_uname_payload);
+  // Create payload list in CSEND pkt
+  csend_pkt->payload = ot_payload_append(csend_pkt->payload, pl_state_payload);
+  csend_pkt->payload = ot_payload_append(csend_pkt->payload, pl_srv_ip_payload);
+  csend_pkt->payload = ot_payload_append(csend_pkt->payload, pl_cli_ip_payload);
+  csend_pkt->payload = ot_payload_append(csend_pkt->payload, pl_hash_payload);
 
-  // Serialize CPULL pkt
+  // Serialize CSEND pkt
   ssize_t bytes_serialized = 0;
   uint8_t buf[2048] = {0xff}; //<< pre-set with 0xFF terminator
-  if ( (bytes_serialized = ot_pkt_serialize(cpull_pkt, buf, sizeof buf)) < 0) 
+  if ( (bytes_serialized = ot_pkt_serialize(csend_pkt, buf, sizeof buf)) < 0) 
   {
     return -1;
   } 
@@ -773,7 +778,7 @@ static int cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT,
   } 
 
   // Free the pkt we used for sending the CPULL pkt
-  ot_pkt_destroy(&cpull_pkt);
+  ot_pkt_destroy(&csend_pkt);
 
   close(sockfd);
 

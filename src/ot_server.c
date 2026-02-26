@@ -38,12 +38,12 @@ static bool pl_treq_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
 // Returns true if the pkt is valid, otherwise false.
 static bool tren_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
 
-// Validates a deserialized CPULL pkt
+// Validates a deserialized CSEND pkt
 //
-// Checks whether the mandatory payloads are in the CPULL pkt
+// Checks whether the mandatory payloads are in the CSEND pkt
 //
 // Returns true if the pkt is valid, otherwise false 
-static bool cpull_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
+static bool csend_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt);
 
 // Checks if the client sending a TREN pkt can renew. 
 //
@@ -72,13 +72,13 @@ static void tack_reply_build(ot_pkt* tack_reply, ot_pkt_header tack_hd,
 //
 // Sets the header (tack_hd) and the appropriate payloads (PL_STATE, PL_SRV_IP, PL_CLI_IP)
 static void cinv_reply_build(ot_pkt* cinv_reply, ot_pkt_header cinv_hd, uint32_t srv_ip, 
-                             uint32_t cli_ip, const char* uname);
+                             uint32_t cli_ip, uint64_t hash);
 
 // Builds an allocated CPUSH reply pkt
 //
 // Sets the header (tack_hd) and the appropriate payloads (PL_STATE, PL_SRV_IP, PL_CLI_IP)
-static void cpush_reply_build(ot_pkt* cpush_reply, ot_pkt_header cpush_hd, uint32_t srv_ip,
-                              uint32_t cli_ip, const char* uname, const char* psk);
+static void cval_reply_build(ot_pkt* cval_reply, ot_pkt_header cval_hd, uint32_t srv_ip,
+                              uint32_t cli_ip, uint64_t hash);
 
 
 // Builds an allocated TPRV reply pkt 
@@ -88,7 +88,8 @@ static void cpush_reply_build(ot_pkt* cpush_reply, ot_pkt_header cpush_hd, uint3
 static void tprv_reply_build(ot_pkt* tprv_reply, ot_pkt_header tprv_hd, uint32_t srv_ip, 
                              uint32_t cli_ip, uint32_t exp_time, uint32_t renew_time);
 // Runs the server loop
-void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC) 
+// Note: PATH should be checked from the caller, no measures here in ot_srv_run
+void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC, const char* PATH)
 {
   time_t curr_time;
 
@@ -107,14 +108,19 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
   address.sin_addr.s_addr = INADDR_ANY;
   address.sin_port = htons(DEF_PORT);
 
-  bind(server_fd, (struct sockaddr *)&address, sizeof(address));
+  if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) 
+  {
+    perror("bind failed");
+    return;
+  }
+
   listen(server_fd, 5);
 
   // Build server context metadata and allocate memory for server context
   ot_srv_ctx_mdata srv_mdata = ot_srv_ctx_mdata_create(DEF_PORT, SRV_IP, SRV_MAC);
   ot_srv_ctx* srv_ctx = ot_srv_ctx_create(srv_mdata);
 
-  otfile_build("/home/mels/otter/tests/files/test.ot", &srv_ctx->otable); 
+  otfile_build(PATH, &srv_ctx->otable); 
 
   printf("[ot srv] Ready to receive bytes on port %d...\n", DEF_PORT);
 
@@ -359,23 +365,36 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
 
             break;
           }
-        case CPULL: 
+        case CSEND: 
           {
-            printf("[ot srv] CPULL from %s\n",
+            printf("[ot srv] CSEND from %s\n",
                    inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
-            // validate the inbound cpull packet
-            if (!cpull_pl_validate(srv_ctx, ptable, recv_pkt)) 
+            // validate the inbound csend packet
+            if (!csend_pl_validate(srv_ctx, ptable, recv_pkt)) 
             {
-              // if invalid, reply with cinv with uname (if it exists in payload)
+              // If invalid csend, begin building cinv pkt reply
               ot_pkt* cinv_reply = ot_pkt_create();
-              char* uname = ht_get(ptable, "PL_UNAME");
-              if (uname == NULL)
-              {
-                cinv_reply_build(cinv_reply, recv_pkt->header,
-                                 SRV_IP, recv_pkt->header.cli_ip, "MLFM");
+
+              // Do we have a possible hash payload?
+              uint64_t* phash = ht_get(ptable, "PL_HASH");
+              uint64_t hash; //<< stackvar for hash payload
+
+              // If hash payload exists, set it to hash stackvar. Otherwise set it to 0
+              if (phash == NULL) {
+                fprintf(stderr, "[ot srv] csend_pl_validate error: could not find pl_hash payload\n");
+                hash = 0;
               } else {
-                cinv_reply_build(cinv_reply, recv_pkt->header,
-                                 SRV_IP, recv_pkt->header.cli_ip, uname);
+                hash = *phash;
+              }
+
+              cinv_reply_build(cinv_reply, recv_pkt->header,
+                               SRV_IP, recv_pkt->header.cli_ip, hash);
+
+              // If cinv_reply was not built, destroy the pkt and cleanup
+              if (cinv_reply == NULL) 
+              {
+                ot_pkt_destroy(&cinv_reply);
+                goto cleanup;
               }
 
               if (send_pkt(&conn_fd, cinv_reply, rx_buffer, sizeof rx_buffer) < 0) 
@@ -384,26 +403,37 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
                         inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
               }
 
-              printf("[ot srv] malformed cpull: client %s, replied with CINV\n",
+              printf("[ot srv] malformed csend: client %s, replied with CINV\n",
                      inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
 
               ot_pkt_destroy(&cinv_reply);
-
               goto cleanup;
             }
+
+            // Safely extract phash
+            uint64_t* phash_validated = ht_get(ptable, "PL_HASH");
+
+            printf("[ot srv] received hash %llx\n", *phash_validated);
 
             // Handle expired clients
             char macstr[24] = {0};
             bytes_to_macstr(recv_pkt->header.cli_mac, macstr);
             if (cli_expiry_check(srv_ctx, recv_pkt->header)) 
             {
-              printf("[ot srv] client %s for cpull is expired, deleting...\n", macstr);
+              printf("[ot srv] client %s for csend is expired, deleting...\n", macstr);
               ht_delete(srv_ctx->ctable, macstr);
 
-              // send tinv due to expired client
               ot_pkt* cinv_reply = ot_pkt_create();
-              char* uname = ht_get(ptable, "PL_UNAME");
-              cinv_reply_build(cinv_reply, recv_pkt->header, SRV_IP, recv_pkt->header.cli_ip, uname);
+            
+              cinv_reply_build(cinv_reply, recv_pkt->header, SRV_IP, recv_pkt->header.cli_ip, *phash_validated);
+
+              // If cinv_reply was not built, destroy the pkt and cleanup
+              if (cinv_reply == NULL) 
+              {
+                ot_pkt_destroy(&cinv_reply);
+                goto cleanup;
+              }
+
               if (send_pkt(&conn_fd, cinv_reply, rx_buffer, sizeof rx_buffer) < 0) 
               {
                 fprintf(stderr, "[ot srv] failed to send cinv to %s\n",
@@ -411,49 +441,55 @@ void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC)
               }
 
               ot_pkt_destroy(&cinv_reply);
-
               goto cleanup;
             }
 
-            // Pull credential from srv otable
-            char* pl_uname = ht_get(ptable, "PL_UNAME");
+            // CSEND pkt is valid by this point. Start building CVAL/CINV reply if hash exists 
 
-            // Pull credentials
-            char* get_psk = ht_get(srv_ctx->otable, pl_uname);
-            if (get_psk == NULL) // If user does not exist, reply with CINV
+            // Convert hash to key first
+            char hashbuf[16] = {0};
+            snprintf(hashbuf, sizeof hashbuf, "%llx", *phash_validated);
+
+            // Decide if we send a CVAL or CINV (if hash exists in otable)
+            uint64_t* check_hash = ht_get(srv_ctx->otable, hashbuf);
+            if (check_hash == NULL)
             {
               ot_pkt* cinv_reply = ot_pkt_create();
               cinv_reply_build(cinv_reply, recv_pkt->header, SRV_IP, recv_pkt->header.cli_ip,
-                                pl_uname);
-              if (send_pkt(&conn_fd, cinv_reply, rx_buffer, sizeof rx_buffer) < 0) 
+                               *phash_validated);
+
+              ssize_t bytes_serialized;
+              if ((bytes_serialized = send_pkt(&conn_fd, cinv_reply, rx_buffer, sizeof rx_buffer)) < 0) 
               {
-                fprintf(stderr, "[ot srv] failed to send cinv to %s due to null entry for uname=%s\n", pl_uname,
+                fprintf(stderr, "[ot srv] failed to send cval to %s\n",
                         inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
               }
 
-              fprintf(stderr, "[ot srv] no entry with uname=%s, sent CINV to %s\n", pl_uname,
-                      inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
-
-
+              // Destroy pkt after use
               ot_pkt_destroy(&cinv_reply);
 
-              goto cleanup;
-            } 
+              printf("[ot srv] sent CINV reply (%zuB) to %s\n",
+                     bytes_serialized,
+                     inet_ntop(AF_INET,&address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+            } else {
+              ot_pkt* cval_reply = ot_pkt_create();
+              cval_reply_build(cval_reply, recv_pkt->header, SRV_IP, recv_pkt->header.cli_ip,
+                               *phash_validated);
 
-            ot_pkt* cpush_reply = ot_pkt_create();
-            cpush_reply_build(cpush_reply, recv_pkt->header, SRV_IP, recv_pkt->header.cli_ip,
-                              pl_uname, get_psk);
+              ssize_t bytes_serialized;
+              if ((bytes_serialized = send_pkt(&conn_fd, cval_reply, rx_buffer, sizeof rx_buffer)) < 0) 
+              {
+                fprintf(stderr, "[ot srv] failed to send cval to %s\n",
+                        inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+              }
 
-            ssize_t bytes_serialized;
-            if ((bytes_serialized = send_pkt(&conn_fd, cpush_reply, rx_buffer, sizeof rx_buffer)) < 0) 
-            {
-              fprintf(stderr, "[ot srv] failed to send cpush to %s\n",
-                      inet_ntop(AF_INET, &address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
+              // Destroy pkt after use
+              ot_pkt_destroy(&cval_reply);
+
+              printf("[ot srv] sent CVAL reply (%zuB) to %s\n",
+                     bytes_serialized,
+                     inet_ntop(AF_INET,&address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
             }
-            
-            printf("[ot srv] sent CPUSH reply (%zuB) to %s\n",
-                   bytes_serialized,
-                   inet_ntop(AF_INET,&address.sin_addr.s_addr, (char*)ipbuf, INET_ADDRSTRLEN));
 
             break;
           }
@@ -639,7 +675,7 @@ static bool tren_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
   return true;
 }
 
-static bool cpull_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
+static bool csend_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
 {
   if (sc == NULL || ptable == NULL || recv_pkt == NULL)
   {
@@ -650,21 +686,21 @@ static bool cpull_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
   // Check mandatory fields in ptable
   uint32_t* pl_srv_ip = ht_get(ptable, "PL_SRV_IP");
   uint32_t* pl_cli_ip = ht_get(ptable, "PL_CLI_IP");
-  char* pl_uname = ht_get(ptable, "PL_UNAME");
+  uint64_t* pl_hash = ht_get(ptable, "PL_HASH");
 
   if (pl_srv_ip == NULL)
   {
-    fprintf(stderr, "[ot srv] cpull validation error: pl_srv_ip not found\n");
+    fprintf(stderr, "[ot srv] csend validation error: pl_srv_ip not found\n");
     return false;
   }
   if (pl_cli_ip == NULL)
   {
-    fprintf(stderr, "[ot srv] cpull validation error: pl_cli_ip not found\n");
+    fprintf(stderr, "[ot srv] csend validation error: pl_cli_ip not found\n");
     return false;
   }
-  if (pl_uname == NULL)
+  if (pl_hash == NULL)
   {
-    fprintf(stderr, "[ot srv] cpull validation error: pl_uname not found\n");
+    fprintf(stderr, "[ot srv] csend validation error: pl_hash not found\n");
     return false;
   }
   
@@ -678,7 +714,7 @@ static bool cpull_pl_validate(ot_srv_ctx* sc, ht* ptable, ot_pkt* recv_pkt)
   ot_cli_ctx* cc_get = ht_get(sc->ctable, macstr);
   if (cc_get == NULL) 
   {
-    fprintf(stderr, "[ot srv] cpull_pl_validate warning: client %s does not exist\n", macstr);
+    fprintf(stderr, "[ot srv] csend_pl_validate warning: client %s does not exist\n", macstr);
     return false;
   }
 
@@ -828,9 +864,9 @@ static void tack_reply_build(ot_pkt* tack_reply, ot_pkt_header tack_hd,
 }
 
 static void cinv_reply_build(ot_pkt* cinv_reply, ot_pkt_header cinv_hd, uint32_t srv_ip,
-                              uint32_t cli_ip, const char* uname)
+                              uint32_t cli_ip, uint64_t hash)
 {
-  if (cinv_reply == NULL) fprintf(stderr, "[ot srv] cinv reply build error: cpush pkt not allocated\n");
+  if (cinv_reply == NULL) fprintf(stderr, "[ot srv] cinv reply build error: cval pkt not allocated\n");
   
   cinv_reply->header = cinv_hd;
   
@@ -851,27 +887,27 @@ static void cinv_reply_build(ot_pkt* cinv_reply, ot_pkt_header cinv_hd, uint32_t
   ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_msgtype, &pl_cli_ip_value, 
                                                     pl_cli_ip_vlen);
 
-  uint8_t pl_uname_msgtype = PL_UNAME;
-  char* pl_uname_value = (char*)uname;
-  uint8_t pl_uname_vlen = strlen(pl_uname_value)+1;
-  ot_payload* pl_uname_payload = ot_payload_create(pl_uname_msgtype, pl_uname_value, 
-                                                   pl_uname_vlen);
+  uint8_t pl_hash_msgtype = PL_HASH;
+  uint64_t pl_hash_value = hash;
+  uint8_t pl_hash_vlen = (uint8_t)sizeof(pl_hash_value);
+  ot_payload* pl_hash_payload = ot_payload_create(pl_hash_msgtype, &pl_hash_value, 
+                                                   pl_hash_vlen);
 
   cinv_reply->payload = ot_payload_append(cinv_reply->payload, pl_state_payload);
   cinv_reply->payload = ot_payload_append(cinv_reply->payload, pl_srv_ip_payload);
   cinv_reply->payload = ot_payload_append(cinv_reply->payload, pl_cli_ip_payload);
-  cinv_reply->payload = ot_payload_append(cinv_reply->payload, pl_uname_payload);
+  cinv_reply->payload = ot_payload_append(cinv_reply->payload, pl_hash_payload);
 }
 
-static void cpush_reply_build(ot_pkt* cpush_reply, ot_pkt_header cpush_hd, uint32_t srv_ip,
-                              uint32_t cli_ip, const char* uname, const char* psk)
+static void cval_reply_build(ot_pkt* cval_reply, ot_pkt_header cval_hd, uint32_t srv_ip,
+                              uint32_t cli_ip, uint64_t hash)
 {
-  if (cpush_reply == NULL) fprintf(stderr, "[ot srv] cpush reply build error: cpush pkt not allocated\n");
+  if (cval_reply == NULL) fprintf(stderr, "[ot srv] cval reply build error: cval pkt not allocated\n");
   
-  cpush_reply->header = cpush_hd;
+  cval_reply->header = cval_hd;
   
   uint8_t pl_state_msgtype = PL_STATE;
-  uint8_t pl_state_value = CPUSH;
+  uint8_t pl_state_value = CVAL;
   uint8_t pl_state_vlen = sizeof(pl_state_value);
   ot_payload* pl_state_payload = ot_payload_create(pl_state_msgtype, &pl_state_value, pl_state_vlen);
 
@@ -887,23 +923,15 @@ static void cpush_reply_build(ot_pkt* cpush_reply, ot_pkt_header cpush_hd, uint3
   ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_msgtype, &pl_cli_ip_value, 
                                                     pl_cli_ip_vlen);
 
-  uint8_t pl_uname_msgtype = PL_UNAME;
-  char* pl_uname_value = (char*)uname;
-  uint8_t pl_uname_vlen = (uint8_t)strlen(pl_uname_value)+1;
-  ot_payload* pl_uname_payload = ot_payload_create(pl_uname_msgtype, pl_uname_value, 
-                                                   pl_uname_vlen);
+  uint8_t pl_hash_msgtype = PL_HASH;
+  uint64_t pl_hash_value = hash;
+  uint8_t pl_hash_vlen = (uint8_t)sizeof(pl_hash_value);
+  ot_payload* pl_hash_payload = ot_payload_create(pl_hash_msgtype, &pl_hash_value, pl_hash_vlen);
 
-  uint8_t pl_psk_msgtype = PL_PSK;
-  char* pl_psk_value = (char*)psk;
-  uint8_t pl_psk_vlen = (uint8_t)strlen(pl_psk_value)+1;
-  ot_payload* pl_psk_payload = ot_payload_create(pl_psk_msgtype, pl_psk_value, 
-                                                   pl_psk_vlen);
-
-  cpush_reply->payload = ot_payload_append(cpush_reply->payload, pl_state_payload);
-  cpush_reply->payload = ot_payload_append(cpush_reply->payload, pl_srv_ip_payload);
-  cpush_reply->payload = ot_payload_append(cpush_reply->payload, pl_cli_ip_payload);
-  cpush_reply->payload = ot_payload_append(cpush_reply->payload, pl_uname_payload);
-  cpush_reply->payload = ot_payload_append(cpush_reply->payload, pl_psk_payload);
+  cval_reply->payload = ot_payload_append(cval_reply->payload, pl_state_payload);
+  cval_reply->payload = ot_payload_append(cval_reply->payload, pl_srv_ip_payload);
+  cval_reply->payload = ot_payload_append(cval_reply->payload, pl_cli_ip_payload);
+  cval_reply->payload = ot_payload_append(cval_reply->payload, pl_hash_payload);
 }
 
 // Builds an allocated TPRV reply pkt 

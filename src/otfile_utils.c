@@ -7,6 +7,19 @@
 #include "ht.h"
 #include "tk.h"
 
+static uint64_t cred_hash(const char* c, size_t clen)
+{
+  uint64_t retval = 0;
+
+  size_t i = 0;
+  for (; i<clen; ++i)
+  {
+    retval += (uint64_t)c[i];
+  }
+
+  return retval;
+}
+
 void otfile_build(const char* PATH, struct ht** ptable) 
 {
   struct ht* table = *ptable;
@@ -27,7 +40,17 @@ void otfile_build(const char* PATH, struct ht** ptable)
     list = tkl_initialize(1024);
     tkl_process_string(list, lbuf);
 
-    ht_set(ptable, list->head->ct, (char*)list->head->next->ct, strlen(list->head->next->ct)+1);
+    char* uname = list->head->ct;
+    char* psk = list->head->next->ct;
+
+    uint64_t hash = cred_hash(uname, strlen(uname))+cred_hash(psk, strlen(psk));
+
+    char hashbuf[16] = {0};
+    snprintf(hashbuf, sizeof hashbuf, "%llx", hash);
+
+    printf("[otfile utils] entry set with hash=%s\n", hashbuf);
+
+    ht_set(ptable, hashbuf, hashbuf, strlen(hashbuf)+1);
 
     tkl_free(list);
   }

@@ -22,7 +22,7 @@
 #define MAX_RECV_SIZE 2048
 
 // Runs the server loop
-void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC); 
+void ot_srv_run(uint32_t SRV_IP, uint8_t* SRV_MAC, const char* PATH); 
 
 #endif //OT_SERVER_H_
 

@@ -54,7 +54,7 @@ bool ot_cli_renew(ot_cli_ctx* ctx);
 // password is found, it receives a CINV designated for the desired username
 //
 // If the client is not authenticated, a CINV is also provided with the username being "UNKN"
-bool ot_cli_pull(ot_cli_ctx ctx, const char* uname, char** dest_psk);
+bool ot_cli_send(ot_cli_ctx ctx, const char* uname, const char* psk);
 
 
 

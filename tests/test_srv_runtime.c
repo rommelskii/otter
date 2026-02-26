@@ -13,24 +13,23 @@
  * - test_tren: 
  *    perform TREQ/TACK hdsk with special MAC, wait until renew time, then send TREN and 
  *    expect TPRV
- * - test_cpull 
- *    perform TREQ/TACK hdsk, send CPULL with valid uname, expect CPUSH with corresponding 
- *    psk to uname
+ * - test_csend 
+ *    perform TREQ/TACK hdsk, send CSEND with hash digest, expect CVAL corresponding to hash
  * - test_expired_tren:
  *    perform TREQ/TACK hdsk with special MAC, wait until client expires (21 seconds), then send
  *    TREN and expect TINV reply
- * - test_expired_cpull:
+ * - test_expired_csend:
  *    perform TREQ/TACK hdsk with special MAC, wait until client expires (21 seconds), then send
- *    CPULL and expect CINV reply
+ *    CSEND and expect CINV reply
  * - test_invalid_tren:
  *    attempts TREN but not within renewal bounds. Expects TINV reply
- * - test_invalid_cpull:
- *    attempts CPULL but the uname does not have a corresponding entry in the serverside database.
+ * - test_invalid_csend:
+ *    attempts CSEND but the uname does not have a corresponding entry in the serverside database.
  *    Expects CINV reply
  * - test_unknown_tren:
  *    attempts TREN with no preceding TREQ/TACK hdsk. Expects TINV reply
- * - test_unknown_cpull:
- *    attempts CPULL with no preceding TREQ/TACK hdsk. Expects CINV reply
+ * - test_unknown_csend:
+ *    attempts CSEND with no preceding TREQ/TACK hdsk. Expects CINV reply
  */
 
 // 
@@ -59,28 +58,35 @@
 int tests_failed = 0; //<< for EXPECT()
 
 //
+// Private Utility Functions
+// 
+// Note: re-implement this with a proper hashing algorithm
+//
+static uint64_t cred_hash(const char* c, size_t clen);
+
+//
 // Unit Test Prototypes
 //
 int test_treq(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
               uint8_t* SRV_MAC, uint8_t* CLI_MAC);
 int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
               uint8_t* SRV_MAC, uint8_t* DBG_CLI_MAC);
-int test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
+int test_csend(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
               uint8_t* SRV_MAC, uint8_t* CLI_MAC);
 
 int test_expired_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
                       uint8_t* SRV_MAC, uint8_t* DBG_CLI_MAC);
-int test_expired_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
+int test_expired_csend(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
                       uint8_t* SRV_MAC, uint8_t* DBG_CLI_MAC);
 
 int test_invalid_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
                       uint8_t* SRV_MAC, uint8_t* DBG_CLI_MAC);
-int test_invalid_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
+int test_invalid_csend(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
                       uint8_t* SRV_MAC, uint8_t* CLI_MAC);
 
 int test_unknown_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
                       uint8_t* SRV_MAC, uint8_t* CLI_MAC);
-int test_unknown_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
+int test_unknown_csend(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
                        uint8_t* SRV_MAC, uint8_t* CLI_MAC);
 
 
@@ -96,7 +102,7 @@ static int test_tren_send(ot_pkt** reply_pkt, const int PORT,
                           uint32_t SRV_IP, uint32_t CLI_IP, 
                           uint8_t* srv_mac, uint8_t* cli_mac);
 
-static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, 
+static int test_csend_send(ot_pkt** reply_pkt, const char* uname, const char* psk,
                            const int PORT, uint32_t SRV_IP,
                            uint32_t CLI_IP, uint8_t* srv_mac, 
                            uint8_t* cli_mac);
@@ -105,7 +111,7 @@ static int test_expired_tren_send(ot_pkt** reply_pkt, const int PORT,
                                   uint32_t SRV_IP, uint32_t CLI_IP, 
                                   uint8_t* srv_mac, uint8_t* cli_mac);
 
-static int test_expired_cpull_send(ot_pkt** reply_pkt, const char* uname, 
+static int test_expired_csend_send(ot_pkt** reply_pkt, const char* uname, 
                                    const int PORT, uint32_t SRV_IP, 
                                    uint32_t CLI_IP, uint8_t* srv_mac, 
                                    uint8_t* cli_mac);
@@ -114,7 +120,7 @@ static int test_invalid_tren_send(ot_pkt** reply_pkt, const int PORT,
                                   uint32_t SRV_IP, uint32_t CLI_IP, 
                                   uint8_t* srv_mac, uint8_t* cli_mac);
 
-static int test_invalid_cpull_send(ot_pkt** reply_pkt, const char* uname, 
+static int test_invalid_csend_send(ot_pkt** reply_pkt, const char* uname, 
                                    const int PORT, uint32_t SRV_IP, 
                                    uint32_t CLI_IP, uint8_t* srv_mac, 
                                    uint8_t* cli_mac);
@@ -132,10 +138,10 @@ int main(void)
   // Test MACs
   uint8_t SRV_MAC[6] = {0x12,0x23,0x44,0x55,0x66,0x77};
   uint8_t CLI_MAC_TREQ[6] = {0x01,0xee,0xdd,0xcc,0xbb,0xaa};
-  uint8_t CLI_MAC_CPULL[6] = {0x03,0xee,0xdd,0xcc,0xbb,0xaa};
-  uint8_t INV_CLI_MAC_CPULL[6] = {0x04,0xee,0xdd,0xcc,0xbb,0xaa};
+  uint8_t CLI_MAC_CSEND[6] = {0x03,0xee,0xdd,0xcc,0xbb,0xaa};
+  uint8_t INV_CLI_MAC_CSEND[6] = {0x04,0xee,0xdd,0xcc,0xbb,0xaa};
   uint8_t UNK_CLI_MAC_TREN[6] = {0x05,0xee,0xdd,0xcc,0xbb,0xaa};
-  uint8_t UNK_CLI_MAC_CPULL[6] = {0x06,0xee,0xdd,0xcc,0xbb,0xaa};
+  uint8_t UNK_CLI_MAC_CSEND[6] = {0x06,0xee,0xdd,0xcc,0xbb,0xaa};
   uint8_t DBG_CLI_MAC[6] = {0x00, 0x00, 0x00, 0xab, 0xab, 0xff};
 
   sleep(2); //<< just in case server hasn't run yet
@@ -143,19 +149,19 @@ int main(void)
   // Normal tests
   if (test_treq(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC_TREQ) != 0) goto check;
   if (test_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto check;
-  if (test_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC_CPULL) != 0) goto check;
+  if (test_csend(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC_CSEND) != 0) goto check;
 
   // Error-handling tests
   if (test_invalid_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto check;
-  if (test_invalid_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, INV_CLI_MAC_CPULL) != 0) goto check;
+  if (test_invalid_csend(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, INV_CLI_MAC_CSEND) != 0) goto check;
 
   // Expired client tests
   if (test_expired_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto check;
-  if (test_expired_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto check;
+  if (test_expired_csend(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) != 0) goto check;
 
   // Unknown client tests
   if (test_unknown_tren(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, UNK_CLI_MAC_TREN) != 0) goto check;
-  if (test_unknown_cpull(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, UNK_CLI_MAC_CPULL) != 0) goto check;
+  if (test_unknown_csend(DEF_PORT, SRV_IP, CLI_IP, SRV_MAC, UNK_CLI_MAC_CSEND) != 0) goto check;
 
 check:
   if (tests_failed > 0) 
@@ -167,6 +173,20 @@ check:
   printf("[test srv runtime] all tests passed!\n");
 
   return 0;
+}
+
+
+static uint64_t cred_hash(const char* c, size_t clen)
+{
+  uint64_t retval = 0;
+
+  size_t i=0; 
+  for(; i<clen; ++i)
+  {
+    retval += (uint64_t)c[i];
+  }
+
+  return retval;
 }
 
 //
@@ -314,21 +334,23 @@ int test_tren(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
   return 0;
 }
 
-int test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
+int test_csend(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
                uint8_t* SRV_MAC, uint8_t* CLI_MAC)
 {
-  printf("---- BEGIN CPULL TESTS ----\n");
+  printf("---- BEGIN CSEND TESTS ----\n");
   uint8_t srv_mac[6] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
   uint8_t cli_mac[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
 
   const char* UNAME = "rommelrond";
   const char* PSK = "WowHello";
 
+  uint64_t HASH = cred_hash(UNAME, strlen(UNAME))+ cred_hash(PSK, strlen(PSK));
+
   // Perform TREQ/TACK handshake first to create context in server ctable
   ot_pkt* reply_pkt = ot_pkt_create();
   if (test_treq_send(&reply_pkt, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0)
   {
-    fprintf(stderr, "[test_cpull] failed to send treq pkt to server for treq/tack hdsk\n");
+    fprintf(stderr, "[test_csend] failed to send treq pkt to server for treq/tack hdsk\n");
     ot_pkt_destroy(&reply_pkt);
     return -1;
   } 
@@ -336,55 +358,48 @@ int test_cpull(const int PORT, const uint32_t SRV_IP, const uint32_t CLI_IP,
   // Clean up reply pkt from TREQ/TACK handshake
   ot_pkt_destroy(&reply_pkt);
 
-  // Send a CPULL request to server and deserialize reply pkt 
+  // Send a CSEND request to server and deserialize reply pkt 
   reply_pkt = ot_pkt_create();
-  if (test_cpull_send(&reply_pkt, UNAME, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0) 
+  if (test_csend_send(&reply_pkt, UNAME, PSK, PORT, SRV_IP, CLI_IP, srv_mac, cli_mac) < 0) 
   {
-    fprintf(stderr, "test_cpull_send: failed to deserialize reply from srv\n");
+    fprintf(stderr, "test_csend_send: failed to deserialize reply from srv\n");
     ot_pkt_destroy(&reply_pkt);
     return -1;
   }
 
-  // Build parse table from possible CPUSH reply pkt payloads
+  // Build parse table from possible CVAL reply pkt payloads
   ot_payload* reply_head = reply_pkt->payload;
   ht* parse_table = ht_create(8);
   pl_parse_table_build(&parse_table, reply_head);
 
-  // Check expected CPUSH reply 
-  printf("[cpull reply] checking for PL_STATE entry in parse table... ");
-  uint8_t* raw_expected_cpush = ht_get(parse_table, "PL_STATE");
-  EXPECT(raw_expected_cpush != NULL, "[cpush reply] pl_state presence");
-  if (raw_expected_cpush == NULL) return -1;
-  ot_cli_state_t expected_cpush = *raw_expected_cpush;
-  EXPECT(expected_cpush == CPUSH, "[cpush reply] pl_state value");
+  // Check expected CVAL reply 
+  uint8_t* raw_expected_cval = ht_get(parse_table, "PL_STATE");
+  EXPECT(raw_expected_cval != NULL, "[cval reply] pl_state presence");
+  if (raw_expected_cval == NULL) return -1;
+  ot_cli_state_t expected_cval = *raw_expected_cval;
+  EXPECT(expected_cval == CVAL, "[cval reply] pl_state value");
 
-  // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
+  // Check expected srv ip (should be same as the one sent in the header of the CSEND pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
-  EXPECT(expected_srv_ip != NULL, "[cpush reply] pl_srv_ip presence");
+  EXPECT(expected_srv_ip != NULL, "[cval reply] pl_srv_ip presence");
   if (expected_srv_ip == NULL) return -1;
-  EXPECT(*expected_srv_ip == SRV_IP, "[cpush reply] pl_srv_ip value");
+  EXPECT(*expected_srv_ip == SRV_IP, "[cval reply] pl_srv_ip value");
 
-  // Check expected cli ip (should be same as the one sent in the header of the CPULL pkt)
+  // Check expected cli ip (should be same as the one sent in the header of the CSEND pkt)
   uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
-  EXPECT(expected_cli_ip != NULL, "[cpush reply] pl_cli_ip presence");
+  EXPECT(expected_cli_ip != NULL, "[cval reply] pl_cli_ip presence");
   if (expected_cli_ip == NULL) return -1;
-  EXPECT(*expected_cli_ip == CLI_IP, "[cpush reply] pl_cli_ip value");
+  EXPECT(*expected_cli_ip == CLI_IP, "[cval reply] pl_cli_ip value");
 
   // Check expected uname
-  const char* expected_uname = ht_get(parse_table, "PL_UNAME");
-  EXPECT(expected_uname != NULL, "[cpush reply] pl_uname presence");
-  if (expected_uname == NULL) return -1;
-  EXPECT(strcmp(expected_uname, UNAME) == 0, "[cpush reply] pl_uname value");
+  const uint64_t* expected_hash = ht_get(parse_table, "PL_HASH");
+  EXPECT(expected_hash != NULL, "[cval reply] pl_hash presence");
+  if (expected_hash == NULL) return -1;
+  EXPECT(*expected_hash == HASH, "[cval reply] pl_hash value");
 
-  // Check expected PSK
-  const char* expected_psk = ht_get(parse_table, "PL_PSK");
-  EXPECT(expected_psk != NULL, "[cpush reply] pl_psk presence");
-  if (expected_psk == NULL) return -1;
-  EXPECT(strcmp(expected_psk, PSK) == 0, "[cpush reply] pl_psk value");
+  printf("---- END CVAL TESTS ----\n");
 
-  printf("---- END CPULL TESTS ----\n");
-
-  // Finally clean up reply pkt used for receiving the CPUSH pkt
+  // Finally clean up reply pkt used for receiving the CVAL pkt
   ot_pkt_destroy(&reply_pkt);
   ht_destroy(parse_table);
   parse_table = NULL;
@@ -456,17 +471,19 @@ int test_expired_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
   return 0;
 }
 
-int test_expired_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
+int test_expired_csend(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
                        uint8_t* SRV_MAC, uint8_t* DBG_CLI_MAC)
 {
   const char* UNAME = "rommelrond";
   const char* PSK = "WowHello";
 
+  uint64_t HASH = cred_hash(UNAME, strlen(UNAME)) + cred_hash(PSK, strlen(PSK));
+
   // Perform TREQ/TACK handshake first to create context in server ctable
   ot_pkt* reply_pkt = ot_pkt_create();
   if (test_treq_send(&reply_pkt, PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) < 0)
   {
-    fprintf(stderr, "[test_expired_cpull] failed to send treq pkt to server for treq/tack hdsk\n");
+    fprintf(stderr, "[test_expired_csend] failed to send treq pkt to server for treq/tack hdsk\n");
     ot_pkt_destroy(&reply_pkt);
     return -1;
   } 
@@ -477,13 +494,13 @@ int test_expired_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
   // Wait until client context expires
   sleep(21);
 
-  printf("---- BEGIN EXPIRED CPULL TESTS ----\n");
+  printf("---- BEGIN EXPIRED CSEND TESTS ----\n");
 
-  // Send a CPULL request to server and deserialize reply pkt 
+  // Send a CSEND request to server and deserialize reply pkt 
   reply_pkt = ot_pkt_create();
-  if (test_cpull_send(&reply_pkt, UNAME, PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) < 0) 
+  if (test_csend_send(&reply_pkt, UNAME, PSK, PORT, SRV_IP, CLI_IP, SRV_MAC, DBG_CLI_MAC) < 0) 
   {
-    fprintf(stderr, "test_cpull_send: failed to deserialize reply from srv\n");
+    fprintf(stderr, "test_csend_send: failed to deserialize reply from srv\n");
     ot_pkt_destroy(&reply_pkt);
     return -1;
   }
@@ -495,7 +512,7 @@ int test_expired_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
 
   // Start payload parsing
 
-  // Check expected CINV reply with CPULL input
+  // Check expected CINV reply with CSEND input
   uint8_t* raw_expected_cinv = ht_get(parse_table, "PL_STATE");
   EXPECT(raw_expected_cinv != NULL, "[expired cinv reply] pl_state presence");
   if (raw_expected_cinv == NULL) return -1;
@@ -503,26 +520,26 @@ int test_expired_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
   EXPECT(expected_cinv == CINV, "[expired cinv reply] pl_state value");
 
 
-  // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
+  // Check expected srv ip (should be same as the one sent in the header of the CSEND pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
   EXPECT(expected_srv_ip != NULL, "[expired cinv reply] pl_srv_ip presence");
   if (expected_srv_ip == NULL) return -1;
   EXPECT(*expected_srv_ip == SRV_IP, "[expired cinv reply] pl_srv_ip value");
 
-  // Check expected cli ip (should be same as the one sent in the header of the CPULL pkt)
+  // Check expected cli ip (should be same as the one sent in the header of the CSEND pkt)
   uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
   EXPECT(expected_cli_ip != NULL, "[expired cinv reply] pl_cli_ip presence");
   if (expected_cli_ip == NULL) return -1;
   EXPECT(*expected_cli_ip == CLI_IP, "[expired cinv reply] pl_cli_ip value");
 
 
-  // Check expected uname
-  const char* expected_uname = ht_get(parse_table, "PL_UNAME");
-  EXPECT(expected_uname != NULL, "[expired cinv reply] pl_uname presence");
-  if (expected_uname == NULL) return -1;
-  EXPECT(strcmp(expected_uname, UNAME) == 0, "[expired cinv reply] pl_uname value");
+  // Check expected hash 
+  uint64_t* expected_hash = ht_get(parse_table, "PL_HASH");
+  EXPECT(expected_hash != NULL, "[expired cinv reply] pl_hash presence");
+  if (expected_hash == NULL) return -1;
+  EXPECT(*expected_hash == HASH, "[expired cinv reply] pl_hash value");
 
-  printf("---- END EXPIRED CPULL TESTS ----\n");
+  printf("---- END EXPIRED CSEND TESTS ----\n");
 
   // Finally clean up reply pkt used for receiving the TPRV pkt
   ot_pkt_destroy(&reply_pkt);
@@ -599,16 +616,19 @@ int test_invalid_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
   return 0;
 }
 
-int test_invalid_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
+int test_invalid_csend(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
                        uint8_t* SRV_MAC, uint8_t* CLI_MAC)
 {
   const char* UNAME = "ThisIsNotReallyAKnownUsername";
+  const char* PSK = "InvalidPassword";
+
+  uint64_t HASH = cred_hash(UNAME, strlen(UNAME)) + cred_hash(PSK, strlen(PSK));
 
   // Perform TREQ/TACK handshake first to create context in server ctable
   ot_pkt* reply_pkt = ot_pkt_create();
   if (test_treq_send(&reply_pkt, PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC) < 0)
   {
-    fprintf(stderr, "[test_invalid_cpull] failed to send treq pkt to server for treq/tack hdsk\n");
+    fprintf(stderr, "[test_invalid_csend] failed to send treq pkt to server for treq/tack hdsk\n");
     ot_pkt_destroy(&reply_pkt);
     return -1;
   } 
@@ -616,13 +636,13 @@ int test_invalid_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
   // Clean up reply pkt from TREQ/TACK handshake
   ot_pkt_destroy(&reply_pkt);
 
-  printf("---- BEGIN INVALID CPULL TESTS ----\n");
+  printf("---- BEGIN INVALID CSEND TESTS ----\n");
 
-  // Send a CPULL request to server and deserialize reply pkt 
+  // Send a CSEND request to server and deserialize reply pkt 
   reply_pkt = ot_pkt_create();
-  if (test_cpull_send(&reply_pkt, UNAME, PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC) < 0) 
+  if (test_csend_send(&reply_pkt, UNAME, PSK, PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC) < 0) 
   {
-    fprintf(stderr, "test_cpull_send: failed to deserialize reply from srv\n");
+    fprintf(stderr, "test_csend_send: failed to deserialize reply from srv\n");
     ot_pkt_destroy(&reply_pkt);
     return -1;
   }
@@ -634,33 +654,32 @@ int test_invalid_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
 
   // Start payload parsing
 
-  // Check expected CINV reply with CPULL input
+  // Check expected CINV reply with CSEND input
   uint8_t* raw_expected_cinv = ht_get(parse_table, "PL_STATE");
   EXPECT(raw_expected_cinv != NULL, "[invalid cinv reply] pl_state presence");
   if (raw_expected_cinv == NULL) return -1;
   ot_cli_state_t expected_cinv = *raw_expected_cinv;
   EXPECT(expected_cinv == CINV, "[invalid cinv reply] pl_state value");
 
-
-  // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
+  // Check expected srv ip (should be same as the one sent in the header of the CSEND pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
   EXPECT(expected_srv_ip != NULL, "[invalid cinv reply] pl_srv_ip presence");
   if (expected_srv_ip == NULL) return -1;
-  EXPECT(*expected_srv_ip == SRV_IP, "[invalid cpull reply] pl_srv_ip value");
+  EXPECT(*expected_srv_ip == SRV_IP, "[invalid csend reply] pl_srv_ip value");
 
-  // Check expected cli ip (should be same as the one sent in the header of the CPULL pkt)
+  // Check expected cli ip (should be same as the one sent in the header of the CSEND pkt)
   uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
   EXPECT(expected_cli_ip != NULL, "[invalid cinv reply] pl_cli_ip presence");
   if (expected_cli_ip == NULL) return -1;
   EXPECT(*expected_cli_ip == CLI_IP, "[invalid cinv reply] pl_cli_ip value");
 
-  // Check expected uname
-  const char* expected_uname = ht_get(parse_table, "PL_UNAME");
-  EXPECT(expected_uname != NULL, "[invalid cinv reply] pl_uname presence");
-  if (expected_uname == NULL) return -1;
-  EXPECT(strcmp(expected_uname, UNAME) == 0, "[invalid cinv reply] pl_uname value");
+  // Check expected hash  
+  uint64_t* expected_hash = ht_get(parse_table, "PL_HASH");
+  EXPECT(expected_hash != NULL, "[invalid cinv reply] pl_hash presence");
+  if (expected_hash == NULL) return -1;
+  EXPECT(*expected_hash == HASH, "[invalid cinv reply] pl_hash value");
 
-  printf("---- END INVALID CPULL TESTS ----\n");
+  printf("---- END INVALID CSEND TESTS ----\n");
 
   // Finally clean up reply pkt used for receiving the TPRV pkt
   ot_pkt_destroy(&reply_pkt);
@@ -725,24 +744,26 @@ int test_unknown_tren(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
 
 }
 
-int test_unknown_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
+int test_unknown_csend(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
                        uint8_t* SRV_MAC, uint8_t* CLI_MAC)
 {
   // No TACK/TREQ handshake
 
-  const char* UNAME = "ThisUsernameWouldntPassAnyway"; //<< this uname does not exist in the serverside db
+  const char* UNAME = "ThisUsernameWouldntPassAnyway"; 
+  const char* PSK = "UnknownPassword";
 
-  printf("---- BEGIN UNKNOWN CPULL TESTS ----\n");
+  uint64_t HASH = cred_hash(UNAME, strlen(UNAME)) + cred_hash(PSK, strlen(PSK));
 
-  // Send a CPULL request to server and deserialize reply pkt 
+  printf("---- BEGIN UNKNOWN CSEND TESTS ----\n");
+
+  // Send a CSEND request to server and deserialize reply pkt 
   ot_pkt* reply_pkt = ot_pkt_create();
-  if (test_cpull_send(&reply_pkt, UNAME, PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC) < 0) 
+  if (test_csend_send(&reply_pkt, UNAME, PSK, PORT, SRV_IP, CLI_IP, SRV_MAC, CLI_MAC) < 0) 
   {
-    fprintf(stderr, "test_unknown_cpull: failed to deserialize reply from srv\n");
+    fprintf(stderr, "test_unknown_csend: failed to deserialize reply from srv\n");
     ot_pkt_destroy(&reply_pkt);
     return -1;
   }
-
 
   // Build parse table from possible CINV reply pkt payloads
   ot_payload* reply_head = reply_pkt->payload;
@@ -751,33 +772,33 @@ int test_unknown_cpull(const int PORT, uint32_t SRV_IP, uint32_t CLI_IP,
 
   // Start payload parsing
 
-  // Check expected CINV reply with CPULL input
+  // Check expected CINV reply with CSEND input
   uint8_t* raw_expected_cinv = ht_get(parse_table, "PL_STATE");
-  EXPECT(raw_expected_cinv != NULL, "[unknown cpull reply] pl_state presence");
+  EXPECT(raw_expected_cinv != NULL, "[unknown csend reply] pl_state presence");
   if (raw_expected_cinv == NULL) return -1;
   ot_cli_state_t expected_cinv = *raw_expected_cinv;
-  EXPECT(expected_cinv == CINV, "[unknown cpull reply] pl_state value");
+  EXPECT(expected_cinv == CINV, "[unknown csend reply] pl_state value");
 
 
-  // Check expected srv ip (should be same as the one sent in the header of the CPULL pkt)
+  // Check expected srv ip (should be same as the one sent in the header of the CSEND pkt)
   uint32_t* expected_srv_ip = ht_get(parse_table, "PL_SRV_IP");
-  EXPECT(expected_srv_ip != NULL, "[unknown cpull reply] pl_srv_ip presence");
+  EXPECT(expected_srv_ip != NULL, "[unknown csend reply] pl_srv_ip presence");
   if (expected_srv_ip == NULL) return -1;
-  EXPECT(*expected_srv_ip == SRV_IP, "[unknown cpull reply] pl_srv_ip value");
+  EXPECT(*expected_srv_ip == SRV_IP, "[unknown csend reply] pl_srv_ip value");
 
-  // Check expected cli ip (should be same as the one sent in the header of the CPULL pkt)
+  // Check expected cli ip (should be same as the one sent in the header of the CSEND pkt)
   uint32_t* expected_cli_ip = ht_get(parse_table, "PL_CLI_IP");
-  EXPECT(expected_cli_ip != NULL, "[unknown cpull reply] pl_cli_ip presence");
+  EXPECT(expected_cli_ip != NULL, "[unknown csend reply] pl_cli_ip presence");
   if (expected_cli_ip == NULL) return -1;
-  EXPECT(*expected_cli_ip == CLI_IP, "[unknown cpull reply] pl_cli_ip value");
+  EXPECT(*expected_cli_ip == CLI_IP, "[unknown csend reply] pl_cli_ip value");
 
-  // Check expected uname
-  const char* expected_uname = ht_get(parse_table, "PL_UNAME");
-  EXPECT(expected_uname != NULL, "[unknown cpull reply] pl_uname presence");
-  if (expected_uname == NULL) return -1;
-  EXPECT(strcmp(expected_uname, UNAME) == 0, "[unknown cpull reply] pl_uname value");
+  // Check expected hash 
+  uint64_t* expected_hash = ht_get(parse_table, "PL_HASH");
+  EXPECT(expected_hash != NULL, "[unknown csend reply] pl_hash presence");
+  if (expected_hash == NULL) return -1;
+  EXPECT(*expected_hash == HASH, "[unknown csend reply] pl_hash value");
 
-  printf("---- END UNKNOWN CPULL TESTS ----\n");
+  printf("---- END UNKNOWN CSEND TESTS ----\n");
 
   // Finally clean up reply pkt used for receiving the TPRV pkt
   ot_pkt_destroy(&reply_pkt);
@@ -996,54 +1017,54 @@ static int test_tren_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, u
   return 0;
 }
 
-static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT, 
+static int test_csend_send(ot_pkt** reply_pkt, const char* uname, const char* psk, const int PORT, 
                            uint32_t SRV_IP, uint32_t CLI_IP, uint8_t* srv_mac, uint8_t* cli_mac) 
 {
-  // Build CPULL header 
-  ot_pkt_header cpull_hd = ot_pkt_header_create(SRV_IP, CLI_IP,  srv_mac, cli_mac, DEF_EXP_TIME, DEF_EXP_TIME*0.75);
+  // Build CSEND header 
+  ot_pkt_header csend_hd = ot_pkt_header_create(SRV_IP, CLI_IP,  srv_mac, cli_mac, DEF_EXP_TIME, DEF_EXP_TIME*0.75);
 
-  // Build CPULL pkt
-  ot_pkt* cpull_pkt = ot_pkt_create();
-  cpull_pkt->header = cpull_hd;
+  // Build CSEND pkt
+  ot_pkt* csend_pkt = ot_pkt_create();
+  csend_pkt->header = csend_hd;
 
-  // Specify CPULL state payload
+  // Specify CSEND state payload
   uint8_t pl_state_type = PL_STATE; //<< state to indicate that we are sending a TREN packet
-  uint8_t pl_state_value = (uint8_t)CPULL; 
+  uint8_t pl_state_value = CSEND; 
   uint8_t pl_state_vlen = (uint8_t)sizeof(pl_state_value);
 
   ot_payload* pl_state_payload = ot_payload_create(pl_state_type, &pl_state_value, pl_state_vlen);
 
-  // Specify CPULL srv_ip payload 
+  // Specify CSEND srv_ip payload 
   uint8_t pl_srv_ip_type = PL_SRV_IP;
   uint32_t pl_srv_ip_value = SRV_IP;
   uint8_t pl_srv_ip_vlen = (uint8_t)sizeof(pl_srv_ip_value);
 
   ot_payload* pl_srv_ip_payload = ot_payload_create(pl_srv_ip_type, &pl_srv_ip_value, pl_srv_ip_vlen);
 
-  // Specify TREN cli_ip payload 
+  // Specify CSEND cli_ip payload 
   uint8_t pl_cli_ip_type = PL_CLI_IP;
   uint32_t pl_cli_ip_value = CLI_IP;
   uint8_t pl_cli_ip_vlen = (uint8_t)sizeof(pl_cli_ip_value);
 
   ot_payload* pl_cli_ip_payload = ot_payload_create(pl_cli_ip_type, &pl_cli_ip_value, pl_cli_ip_vlen);
   
-  // Specify CPULL uname payload 
-  uint8_t pl_uname_type = PL_UNAME;
-  char* pl_uname_value = (char*)uname;
-  uint8_t pl_uname_vlen = (uint8_t)strlen(pl_uname_value)+1;
+  // Specify CSEND hash payload
+  uint8_t pl_hash_type = PL_HASH;
+  uint64_t pl_hash_value = cred_hash(uname, strlen(uname)) + cred_hash(psk, strlen(psk));
+  uint8_t pl_hash_vlen = (uint8_t)sizeof(pl_hash_value);
 
-  ot_payload* pl_uname_payload = ot_payload_create(pl_uname_type, pl_uname_value, pl_uname_vlen);
+  ot_payload* pl_hash_payload = ot_payload_create(pl_hash_type, &pl_hash_value, pl_hash_vlen);
   
-  // Create payload list in CPULL pkt
-  cpull_pkt->payload = ot_payload_append(cpull_pkt->payload, pl_state_payload);
-  cpull_pkt->payload = ot_payload_append(cpull_pkt->payload, pl_srv_ip_payload);
-  cpull_pkt->payload = ot_payload_append(cpull_pkt->payload, pl_cli_ip_payload);
-  cpull_pkt->payload = ot_payload_append(cpull_pkt->payload, pl_uname_payload);
+  // Create payload list in CSEND pkt
+  csend_pkt->payload = ot_payload_append(csend_pkt->payload, pl_state_payload);
+  csend_pkt->payload = ot_payload_append(csend_pkt->payload, pl_srv_ip_payload);
+  csend_pkt->payload = ot_payload_append(csend_pkt->payload, pl_cli_ip_payload);
+  csend_pkt->payload = ot_payload_append(csend_pkt->payload, pl_hash_payload);
 
-  // Serialize CPULL pkt
+  // Serialize CSEND pkt
   ssize_t bytes_serialized = 0;
   uint8_t buf[2048] = {0xff}; //<< pre-set with 0xFF terminator
-  if ( (bytes_serialized = ot_pkt_serialize(cpull_pkt, buf, sizeof buf)) < 0) 
+  if ( (bytes_serialized = ot_pkt_serialize(csend_pkt, buf, sizeof buf)) < 0) 
   {
     ++tests_failed;
     return -1;
@@ -1069,7 +1090,7 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
     return -1;
   } 
 
-  // Send the serialized CPULL to server
+  // Send the serialized CSEND to server
   send(sockfd, buf, bytes_serialized, 0);
   // Wait for reply
   if (read(sockfd, buf, sizeof buf) < 0) 
@@ -1086,8 +1107,8 @@ static int test_cpull_send(ot_pkt** reply_pkt, const char* uname, const int PORT
     return -1;
   } 
 
-  // Free the pkt we used for sending the CPULL pkt
-  ot_pkt_destroy(&cpull_pkt);
+  // Free the pkt we used for sending the CSEND pkt
+  ot_pkt_destroy(&csend_pkt);
 
   close(sockfd);
 
