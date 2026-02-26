@@ -8,12 +8,56 @@
     <link rel="stylesheet" href="style.css">
   </head>
   <body>
-    <p>
-      nyum
-    </p>
-    <a href="index.html">
-      Go back to main page
-    </a>
+    <section>
+      <h1>Otter Protocol</h1>
+      <div>
+        <a href="index.html">
+          Go back to main page
+        </a>
+      </div>
+      <hr>
+    </section>
+    <section>
+      <h2>
+        How Otter Works
+      </h2>
+      <h3>
+        Overview
+      </h3>
+      <p>
+        The Otter Protocol is a client/server protocol suite for authenticating username-password combinations to a database or 
+        file of existing entries. In this protocol, servers are known as Otter servers or 'otservers' and clients are Otter 
+        clients or 'otclients'. Otclients first tether with an otserver via tethering packets (TREQ, TREN, TACK, TPRV, TINV) and communicate via credential packets (CSEND, 
+        CVAL, CINV) to check if a username-password combination exists in the database handled by the otserver.
+      </p>
+
+      <h3>
+        Client Tethering
+      </h3>
+      <p>
+        Before communication can take place between an otserver and otclient, the otclient must first establish tethering
+        with the otserver. Tethering allows the otserver to validate and register the details of an otclient with an
+        expiry time. This can be done by performing a tether request/tether acknowledge (TREQ/TACK) handshake which will 
+        be discussed in detail under the section <a href="ot_packets.h">Otter Packets</a>.
+      </p>
+
+      <h3>
+        Otter Files (Otfiles) and Otter Servers (Otservers)
+      </h3>
+      <p>
+        Otter servers (otservers) utilize a specific file called the Otter file (otfile, with .ot
+        extension) that contains the database of username-password combinations. Otservers construct a hash set out of the
+        otfile entries by computing each entry into a hash digest. This hash set is known as a Otter table or 'otable' which
+        is part of the server runtime object called the 'server context' to be discussed further in the 
+        section <a href="ot_contexts.html">Client/Server Contexts</a>. All subsequent otclient transactions with the otserver
+        revolves around cross-checks with the otable.
+      </p>
+      <div>
+        <a href="index.html">
+          Go back to main page
+        </a>
+      </div>
+    </section>
     <script src="index.js"></script>
   </body>
 </html>
