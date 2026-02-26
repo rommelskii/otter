@@ -1,65 +1,48 @@
-# Otter Protocol 
+# Otter
 
-branch: auth
+A TCP-based authentication server and protocol suite for authenticating user details
 
-## Purpose
-This branch is strictly for introducing the authentication functionality instead of 
-fetching credentials via CPUSH and CPULL. 
+## Features
 
-Honestly, I was too caught up with the client tethering that I forgot
-the true purpose of the authentication portion of this project. Hence, this branch will rework the CPULL/CPUSH/CINV transactions
-to CSEND, CVAL, and CINV transactions.
+- **Tethering:** Client-server connection management via handshake transactions
+- **Secure Authentication:** Implements credential hashing and salting
+- **TCP Communication** Utilizes TCP sockets for communication between client and server
 
-## Theoretical Appetizers
-### Credential Hashing
-The current working implementation of the Otter protocol only accounts for the tethering action. 
-The credential transactions, however, are just boilerplates. Recall that the point of the
-Otter protocol is to provide client-server tethering and authentication of user details upon
-provision in the clientside. 
+## Project Structure
 
-How can we authenticate user details securely? Obviously, we cannot just use plaintext 
-payloads over the network via the usual CPULL, CPUSH, and CINV packets. What we can do, is to
-introduce hashing. 
+- `include/`: Header files and public API definitions.
+- `src/`: Core implementation of the Otter protocol and API.
+- `examples/`: Sample programs demonstrating client and server implementation.
+- `tests/`: Unit tests and protocol validation suites.
 
-Suppose we have a username-password entry in the serverside otfile `(username123, password123)`. 
-Let `hash(str)` take in a string `str` and output an unsigned 64-bit number. Compute the hashes:
+## Getting Started
+
+### Prerequisites
+
+- C compiler (GCC/Clang)
+- CMake (version 3.10 or higher)
+
+### Build Instructions
+
+You can use the provided build script or run CMake manually:
+
+```bash
+# Using the build script
+chmod +x build.sh
+./build.sh
+
+# Manual build
+mkdir build && cd build
+cmake ..
+make
+```
+
+### Testing Instructions
+
+To perform tests, you must perform:
 
 ```
-uname_hash := hash("username123")
-psk_hash := hash("password123")
+chmod +x run_tests.sh
+./run_tests.sh
 ```
 
-Instead of storing these both as their own individual payloads, we can combine the two hashes:
-
-```
-final_hash := uname_hash + psk_hash
-```
-
-Nice! Now we have some obfuscated form of information that represents the username-password
-combination in a way that is not obvious. We can then convert the `final_hash` into a string
-and use it as a new `PL_HASH` msgtype to indicate that we are sending over user details to
-authenticate if it exists in the server. 
-
-### Authentication Tables
-
-Recall that in the server context, we have a context table for storing client contexts and a 
-otfile table that stores the entries from an otfile. Suppose now that we have received a CPULL
-containing the PL_HASH payload. How can we then authenticate the hash to our existing otable?
-
-Suppose we create a new table called an authentication table or atable to replace the otable.
-The atable is a hash set (keys map to itself) where it contains all the username+password hashes 
-for every otfile entry.
-
-For added security, suppose that every regular interval, we generate a randomized 64-bit number
-that we add to the hashes before being added to the atable. This is a process known as salting,
-where we add a number to the hash itself for more obfuscation. In the event that there is
-already an existing atable and rehashing is needed, we just destroy the old atable and create
-a new one from the same otfile but with the new hash.
-
-## Game Plan
-
-Now that we have discussed the theory needed for implementing the revised credential transactions, we then 
-discuss how to implement it. We start by first deprecating the original the CPULL and CPUSH signatures and the tests involved
-with them. These are then replaced in to the credential send (CSEND) and credential valid (CVAL) replies. After which,
-we design new API functions for handling these, and we write the appropriate test cases for them. When all is well, 
-we then implement them.
