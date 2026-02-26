@@ -14,7 +14,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE HASH
 ////////////////////////////////////////////////////////////////////////////////
-static uint64_t cred_hash(const char* c);
+static uint64_t cred_hash(const char* c, size_t clen);
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE FUNCTIONS FOR PACKET BUILDING
@@ -345,7 +345,7 @@ cleanup:
   return retval;
 }
 
-bool ot_cli_send(ot_cli_ctx ctx, const char* uname, const char* psk, char** dest_psk)
+bool ot_cli_send(ot_cli_ctx ctx, const char* uname, const char* psk)
 {
   bool retval = true;
   ot_pkt* cpush_pkt = ot_pkt_create();
@@ -357,6 +357,9 @@ bool ot_cli_send(ot_cli_ctx ctx, const char* uname, const char* psk, char** dest
                        ctx.header.cli_ip,
                        ctx.header.srv_mac,
                        ctx.header.cli_mac);
+
+  uint64_t hashed_info = cred_hash(uname, strlen(uname)) + cred_hash(psk, strlen(psk));
+
   if (res < 0 || cpush_pkt == NULL)
   {
     fprintf(stderr, "failed to send treq to server\n");
@@ -394,8 +397,7 @@ bool ot_cli_send(ot_cli_ctx ctx, const char* uname, const char* psk, char** dest
   uint8_t* raw_pl_state = ht_get(ptable, "PL_STATE");
   uint32_t* pl_srv_ip = ht_get(ptable, "PL_SRV_IP");
   uint32_t* pl_cli_ip = ht_get(ptable, "PL_CLI_IP");
-  char* pl_uname = ht_get(ptable, "PL_UNAME");
-  char* pl_psk = ht_get(ptable, "PL_PSK");
+  uint64_t* pl_hash = ht_get(ptable, "PL_HASH");
 
   // Nullity checks
   if (raw_pl_state == NULL) 
@@ -416,27 +418,28 @@ bool ot_cli_send(ot_cli_ctx ctx, const char* uname, const char* psk, char** dest
     retval = false;
     goto cleanup;
   }
-  if (pl_uname == NULL) 
+  if (pl_hash == NULL) 
   {
-    fprintf(stderr, "ot_cli_auth error: no uname payload\n");
+    fprintf(stderr, "ot_cli_auth error: no hash payload\n");
     retval = false;
     goto cleanup;
   }
 
   ot_cli_state_t pl_state = *raw_pl_state;
 
-  // Check if reply pkt is CPUSH
-  if (pl_state != CSEND) 
+  // Check if reply pkt is CINV or invalid. Return false 
+  if (pl_state != CVAL) 
   {
-    fprintf(stderr, "ot_cli_send error: reply pkt is not cpush\n");
+    if (pl_state == CINV)
+    {
+      fprintf(stderr, "ot_cli_send warning: cinv received from info\n");
+    } else {
+      fprintf(stderr, "ot_cli_send warning: reply pkt is not CVAL nor CINV\n");
+    }
+
     retval = false;
     goto cleanup;
   } 
-  if (pl_state == CINV) // User does not exist in database (dest_psk will be null)
-  {
-    retval = false;
-    goto cleanup;
-  }
 
   // Header comparison / credential sanity checks
   if (*pl_srv_ip != cpush_pkt->header.srv_ip) 
@@ -451,29 +454,14 @@ bool ot_cli_send(ot_cli_ctx ctx, const char* uname, const char* psk, char** dest
     retval = false;
     goto cleanup;
   }
-  if (strlen(pl_uname) == 0) 
-  {
-    fprintf(stderr, "ot_cli_csend error: uname payload is empty\n");
-    retval = false;
-    goto cleanup;
-  }
-  if (strlen(pl_psk) == 0) 
-  {
-    fprintf(stderr, "ot_cli_csend error: psk payload is empty\n");
-    retval = false;
-    goto cleanup;
-  }
 
   // Check if the payload is actually for the intended uname
-  if (strcmp(pl_uname, uname) != 0) 
+  if (*pl_hash != hashed_info) 
   {
-    fprintf(stderr, "ot_cli_csend error: payload uname does not match intended uname\n");
+    fprintf(stderr, "ot_cli_csend error: inbound hash does not match the intended hash\n");
     retval = false;
     goto cleanup;
   }
-
-  // CPUSH is valid beyond this point
-  *dest_psk = strdup(pl_psk);
 
 cleanup:
   ot_pkt_destroy(&cpush_pkt);
@@ -483,9 +471,16 @@ cleanup:
   return retval;
 }
 
-static uint64_t cred_hash(const char* c) {
-  assert("cred_hash: not yet implemented" && false);
-  return -1;
+static uint64_t cred_hash(const char* c, size_t clen) {
+  uint64_t retval = 0;
+
+  size_t i=0;
+  for(;i<clen;++i)
+  {
+    retval += (uint64_t)c[i];
+  }
+
+  return retval;
 }
 
 static int treq_send(ot_pkt** reply_pkt, const int PORT, uint32_t SRV_IP, 
@@ -730,7 +725,7 @@ static int csend_send(ot_pkt** reply_pkt, const char* uname, const char* psk, co
   
   // Specify CSEND hash payload 
   uint8_t pl_hash_type = PL_HASH;
-  uint64_t pl_hash_value = cred_hash(uname) + cred_hash(psk);
+  uint64_t pl_hash_value = cred_hash(uname, strlen(uname)) + cred_hash(psk, strlen(psk));
   uint8_t pl_hash_vlen = (uint8_t)sizeof(pl_hash_value);
 
   ot_payload* pl_hash_payload = ot_payload_create(pl_hash_type, &pl_hash_value, pl_hash_vlen);
