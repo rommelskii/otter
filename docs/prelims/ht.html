@@ -15,12 +15,25 @@
           Go back to main page
         </a>
       </div>
+      <div>
+        <a href="../prelims.html">
+          Previous
+        </a>
+      </div>
       <hr>
     </section>
     <section>
       <h2>
-        Hash Table (ht.h)
+        Hash Table (<a href="https://github.com/rommelskii/otter/blob/main/include/ht.h">ht.h<a>)
       </h2>
+
+      <p><code style="font-family:18px">ht_create(const size_t CAPACITY)</code></p>
+      <p><code style="font-family:18px">ht_set(ht** table, const char* key, void* value, size_t value_len)</code></p>
+      <p><code style="font-family:18px">ht_delete(ht* table, const char* key)</code></p>
+      <p><code style="font-family:18px">ht_get(ht* table, const char* key)</code></p>
+      <p><code style="font-family:18px">ht_length(ht* table)</code></p>
+      <p><code style="font-family:18px">ht_capacity(ht* table)</code></p>
+      <p><code style="font-family:18px">ht_destroy(ht* table)</code></p>
 
       <h3>
         Overview 
@@ -34,9 +47,11 @@
         Hash Collisions Remedy and Table Expansion
       </h3>
       <p>
-        In this library, hash tables implement open-addressing to mitigate hash collisions where on the event of a hash
-        collision, the entry to be added is set to the next available slot in the hash table. Hash table expansion occurs when
-        the size is greater than half of the capacity.
+        In this library, hash tables implement open-addressing to mitigate hash collisions where on the event of a hash collision, the entry to be added is set to the next available slot in the hash table. 
+      </p>
+      <p>
+        Hash table expansion occurs when the size is greater than half of the capacity. The pointer to the original hash table is 
+        then shifted to an identical hash table (with the same entries) but with double the capacity.
       </p>
 
       <hr>
@@ -49,23 +64,34 @@
         Hash Table Entry 
       </h4>
       <pre class="code-block">
-        <code>typedef struct {
-          char*   key;
-          void*   value;
-          size_t  vlen;
-        } ht_entry;</code>
+<code>typedef struct {
+  char*   key;
+  void*   value;
+  size_t  vlen;
+} ht_entry;</code>
       </pre>
+
+      <p>
+        Hash table entries consist of a C-string pointer to the key, a pointer to the value, and the length in bytes of the 
+        aforementioned value.
+      </p>
 
       <h4>
         Hash Table 
       </h4>
       <pre class="code-block">
-        <code>typedef struct {
-          size_t    size;
-          size_t    capacity;
-          ht_entry* entries;
-        } ht;</code>
+<code>typedef struct {
+  size_t    size;
+  size_t    capacity;
+  ht_entry* entries;
+} ht;</code>
       </pre>
+
+      <p>
+        Hash tables consist of a size, capacity, and array of entries. The <code style="font-size:18px">entries</code>
+        array is dynamically allocated when table expansion occurs (when size is at least 50% of capacity) and the capacity is
+        set to double its own value.
+      </p>
 
       <hr>
 
@@ -74,7 +100,7 @@
       </h3>
       <section>
         <hr>
-        <pre><code>ht* ht_create(const size_t CAPACITY)</code></pre>
+        <pre><code style="font-weight: bold"><a>ht* ht_create(const size_t CAPACITY)</code></pre>
         <hr>
 
         <p>
@@ -103,13 +129,16 @@
 
       <section>
         <hr>
-        <pre><code>const char* ht_set(ht** table, const char* key, void* value, size_t value_len)</code></pre>
+        <pre><code style="font-weight: bold">const char* ht_set(ht** table, const char* key, void* value, size_t value_len)</code></pre>
         <hr>
 
         <p>
           Creates a hash table entry out of the provided key and value and indexes it to <code style="font-size:18px">table</code>.
           This function creates an internal copy of the values passed to it, hence subsequent parameter freeing does not affect 
           the hash table entries.
+        </p>
+        <p>
+          Note that on a hash collision, the value mapped by the provided key is overwritten by the new value.
         </p>
 
         <p>
@@ -147,7 +176,7 @@
 
       <section>
         <hr>
-        <pre><code>void* ht_get(ht* table, const char* key)</code></pre>
+        <pre><code style="font-weight: bold">void* ht_get(ht* table, const char* key)</code></pre>
         <hr>
         <p>
           Looks up an entry in <code style="font-size: 18px">table</code> mapped by the provided key string. 
@@ -179,14 +208,15 @@
 
       <section>
         <hr>
-        <pre><code>const char* ht_delete(ht* table, const char* key)</code></pre>
+        <pre><code style="font-weight: bold">const char* ht_delete(ht* table, const char* key)</code></pre>
         <hr>
         <p>
           Frees an entry from a hash table by its key. 
         </p>
         <p>
           If the key maps DOES map to an index within the entries of <code style="font-family: 18px">table</code>,
-          it then frees the entry's key string and entry value and sets them both to NULL.
+          it then frees the entry's key string and entry value and sets them both to NULL. Lastly, the size attribute of the
+          hash table is decremented by 1.
         </p>
 
         <p>
@@ -215,7 +245,7 @@
           Returns 
         </h4>
         <p>
-          On success, it returns the original key of the entry added. Returns NULL if failed.
+          On success, it returns the original key of the entry deleted. Returns NULL if failed.
         </p>
       </section>
 
@@ -224,7 +254,7 @@
 
       <section>
         <hr>
-        <pre><code>void ht_destroy(ht* table)</code></pre>
+        <pre><code style="font-weight: bold">void ht_destroy(ht* table)</code></pre>
         <hr>
         <p>
           Frees a hash table and its entries to memory.
@@ -246,12 +276,53 @@
         </p>
       </section>
 
+      <div class="api-spacer"></div>
+
+      <section>
+        <hr>
+        <pre><code style="font-weight: bold">size_t ht_length(ht* table)</code></pre>
+        <hr>
+        <p>
+          Extracts the length attribute of a hash table
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">table</code> - pointer to the hash table 
+        </p>
+      </section>
+
+      <div class="api-spacer"></div>
+
+      <section>
+        <hr>
+        <pre><code style="font-weight: bold">size_t ht_capacity(ht* table)</code></pre>
+        <hr>
+        <p>
+          Extracts the capacity attribute of a hash table
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">table</code> - pointer to the hash table 
+        </p>
+      </section>
       <div>
         <a href="../index.html">
           Go back to main page
         </a>
       </div>
+      <div>
+        <a href="../prelims.html">
+          Previous
+        </a>
+      </div>
     </section>
+
     <script src="index.js"></script>
   </body>
 </html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Otter Protocol Documentation</title>
+    <link rel="stylesheet" href="../style.css">
+  </head>
+  <body>
+    <section>
+      <h1>Otter Protocol</h1>
+      <div>
+        <a href="../index.html">
+          Go back to main page
+        </a>
+      </div>
+      <div>
+        <a href="../prelims.html">
+          Previous
+        </a>
+      </div>
+      <hr>
+    </section>
+    <section>
+      <h2>
+        Token List (<a href="https://github.com/rommelskii/otter/blob/main/include/tk.h">tk.h<a>)
+      </h2>
+
+      <h3>
+        Overview 
+      </h3>
+      <p>
+        Token lists (TkL) are singly-linked lists that contain token nodes (Tk) that represent token strings.
+      </p> 
+      <p>
+        In this protocol, TkLs are used for parsing otfiles. Instead of manually referencing indices when iterating over the
+        otfiles, I utilized a general tokenization approach should there be any additions to otfile parameters.
+      </p> 
+
+      <hr>
+
+      <h3>
+        Objects
+      </h3>
+
+      <h4>
+        Token Node
+      </h4>
+      <pre class="code-block">
+<code>struct Tk 
+{
+  char*       ct;
+  struct Tk*  next;
+};</code>
+      </pre>
+
+      <p>
+        Token nodes simply contain the string and the pointer to the next token node.
+      </p>
+
+      <p>
+        I should really add a string length attribute here, shouldn't I?
+      </p>
+
+      <h4>
+        Token List
+      </h4>
+      <pre class="code-block">
+<code>struct TkL 
+{
+  struct Tk*  head;
+  struct Tk*  tail;
+  size_t      length;
+  size_t      capacity;
+};</code>
+      </pre>
+
+      <p>
+        Token lists are defined by references to its head and tail token nodes. It also has the length and capacity attributes
+        similar to the <a href="ht.h">hash table</a> structure.
+      </p>
+
+      <hr>
+
+      <h3>
+        Public API
+      </h3>
+      <section>
+        <hr>
+        <pre><code style="font-weight: bold">struct Tk* tk_create(const char* ct, size_t len_ct)</code></pre>
+        <hr>
+
+        <p>
+          Allocates memory for a token node and initializes its parameters to the provided token string and string length.
+        </p>
+
+        <p>
+          This function creates a copy out of the string provided in the argument, so token nodes are safe from subsequent
+          parameter memory frees.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">ct</code> - pointer to the token string
+        </p>
+        <p>
+          <code style="font-size: 18px;">len_ct</code> - length of the string (with null terminator)
+        </p>
+        <h4>
+          Returns
+        </h4>
+        <p>
+          Returns a pointer to the newly created token node. If out of memory, NULL is returned.          
+        </p>
+      </section>
+
+      <div class="api-spacer"></div>
+
+      <section>
+        <hr>
+        <pre><code style="font-weight: bold">void tk_free(struct Tk* tok)</code></pre>
+        <hr>
+
+        <p>
+          Frees a token node to memory.
+        </p>
+        <p>
+          The token node's string is freed and set to NULL. The reference to the next token node is also set to NULL.
+        </p>
+        <p>
+          Do not forget to free <code style="font-size:18px">tok</code> from the caller to avoid use-after-frees.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">tok</code> - pointer to the token node to be freed
+        </p>
+      </section>
+
+      <div class="api-spacer"></div>
+
+      <section>
+        <hr>
+        <pre><code style="font-weight: bold">struct TkL* tkl_initialize(const size_t CAPACITY)</code></pre>
+        <hr>
+
+        <p>
+          Allocates memory for a token list and initializes the capacity by the value provided.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">CAPACITY</code> - desired initial capacity of the token list
+        </p>
+
+        <h4>
+          Returns 
+        </h4>
+        <p>
+          Returns a pointer to the newly-created token list. If out of memory, returns NULL.
+        </p>
+      </section>
+
+      <div class="api-spacer"></div>
+
+      <section>
+        <hr>
+        <pre><code style="font-weight: bold">struct Tk* tkl_append(struct TkL* list, struct Tk* add)</code></pre>
+        <hr>
+        <p>
+          Appends a token node to the end of a token list.
+        </p>
+        <p>
+          This function utilizes the tail pointer of the provided token list to insert a node at the end of the list. 
+          After appending, the list's tail becomes the newly-added token.
+        </p>
+
+        <p>
+          If the token list length is greater than or equal to the capacity, the function does not append and simply returns
+          NULL.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">list</code> - pointer to the token list to be appended to
+        </p>
+        <p>
+          <code style="font-size: 18px;">add</code> - pointer to the token node to be added
+        </p>
+
+        <h4>
+          Returns 
+        </h4>
+        <p>
+          If successful, the pointer to the new token list tail is returned. Otherwise, NULL is returned.
+        </p>
+      </section>
+
+      <div class="api-spacer"></div>
+
+      <section>
+        <hr>
+        <pre><code style="font-weight: bold">void tkl_process_string(struct TkL* list, const char* lbuf)</code></pre>
+        <hr>
+
+        <p>
+          Converts a null-terminated and whitespace-delimited line of strings to a token list. Used for otfile parsing.
+        </p>
+
+        <p>
+          This function is used within a parse loop of an otfile. With every line extracted, this function is invoked to 
+          map the current line to the token list.
+        </p>
+
+        <p>
+          It works by extracting every string along the line that are separated by a whitespace. Each string is converted to a 
+          token node and appended to the destination token list.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">list</code> - pointer to the destination token list
+        </p>
+        <p>
+          <code style="font-size: 18px;">lbuf</code> - line buffer containing the string
+        </p>
+
+        <h4>
+          Returns 
+        </h4>
+        <p>
+          Returns a pointer to the token list of the input string. If failed, returns NULL.
+        </p>
+      </section>
+
+      <div class="api-spacer"></div>
+
+      <section>
+        <hr>
+        <pre><code style="font-weight: bold">struct Tk* tkl_remove_by_ct(struct TkL* list, const char* ct)</code></pre>
+        <hr>
+        <p>
+          Removes a token list node whose string matches the argument string.
+        </p>
+        <p>
+          This is a linear-time function that searches through the token list nodes and checks if the string provided matches
+          the iteration's token string.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">list</code> - pointer to the token list to be iterated over
+        </p>
+        <p>
+          <code style="font-size: 18px;">ct</code> - string to match for deletion
+        </p>
+
+        <h4>
+          Returns 
+        </h4>
+        <p>
+          On success, it returns the tail of the linked list. Returns NULL if there is no match.
+        </p>
+      </section>
+
+      <div class="api-spacer"></div>
+
+
+
+      <section>
+        <hr>
+        <pre><code style="font-weight: bold">void tkl_free(struct TkL* list)</code></pre>
+        <hr>
+
+        <p>
+          Frees a token list and its token nodes to memory.
+        </p>
+
+        <p>
+          Like with any destructor in the preliminary libraries, always set <code style="font-size:18px">list</code> to NULL
+          from the caller to avoid use-after-frees.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">list</code> - pointer to the token list to be freed
+        </p>
+      </section>
+
+      <div>
+        <a href="../index.html">
+          Go back to main page
+        </a>
+      </div>
+      <div>
+        <a href="../prelims.html">
+          Previous
+        </a>
+      </div>
+    </section>
+    <script src="index.js"></script>
+  </body>
+</html>
+
