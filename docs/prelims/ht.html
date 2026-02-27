@@ -27,12 +27,27 @@
       </h3>
       <p>
         Hash tables in this project utilize the <a href="https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function">FNV-1a</a> hashing
-        algorithm. The rest of the documentation for this library revolves around creating, destroying, and modifying hash table entries.
+        algorithm. The rest of the documentation for this library revolves around creating, destroying, and modifying hash table 
+        entries.
+      </p> 
+      <h3>
+        Hash Collisions Remedy and Table Expansion
+      </h3>
+      <p>
+        In this library, hash tables implement open-addressing to mitigate hash collisions where on the event of a hash
+        collision, the entry to be added is set to the next available slot in the hash table. Hash table expansion occurs when
+        the size is greater than half of the capacity.
       </p>
 
+      <hr>
+
       <h3>
-        Hash Table Entry 
+        Objects
       </h3>
+
+      <h4>
+        Hash Table Entry 
+      </h4>
       <pre class="code-block">
         <code>typedef struct {
           char*   key;
@@ -40,6 +55,196 @@
           size_t  vlen;
         } ht_entry;</code>
       </pre>
+
+      <h4>
+        Hash Table 
+      </h4>
+      <pre class="code-block">
+        <code>typedef struct {
+          size_t    size;
+          size_t    capacity;
+          ht_entry* entries;
+        } ht;</code>
+      </pre>
+
+      <hr>
+
+      <h3>
+        Public API
+      </h3>
+      <section>
+        <hr>
+        <pre><code>ht* ht_create(const size_t CAPACITY)</code></pre>
+        <hr>
+
+        <p>
+          Allocates memory for a hash table object with the initial capacity being set to the 
+          <code style="font-size: 18px">
+            CAPACITY
+          </code>
+          argument. On the other hand, the size and the entries array pointer are set to 0 and NULL respectively.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">CAPACITY</code> - initial size capacity of the hash table
+        </p>
+        <h4>
+          Returns
+        </h4>
+        <p>
+          <code style="font-size: 18px">ht*</code> object with allocated memory and initialized attributes
+        </p>
+      </section>
+
+      <div class="api-spacer"></div>
+
+      <section>
+        <hr>
+        <pre><code>const char* ht_set(ht** table, const char* key, void* value, size_t value_len)</code></pre>
+        <hr>
+
+        <p>
+          Creates a hash table entry out of the provided key and value and indexes it to <code style="font-size:18px">table</code>.
+          This function creates an internal copy of the values passed to it, hence subsequent parameter freeing does not affect 
+          the hash table entries.
+        </p>
+
+        <p>
+          Moreover, this function automatically expands the <code style="font-size:18px">table</code> object. It uses a private
+          and internal function that reassigns <code style="font-size:18px">table</code> to a new hash table object with 
+          double the original capacity. This is why it demands a double pointer for the hash table parameter.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">table</code> - pointer to the caller's reference to the hash table object
+        </p>
+        <p>
+          <code style="font-size: 18px;">key</code> - null-terminated key string
+        </p>
+        <p>
+          <code style="font-size: 18px;">value</code> - pointer to the value mapped by key
+        </p>
+        <p>
+          <code style="font-size: 18px;">value_len</code> - length of the value in bytes
+        </p>
+
+        <h4>
+          Returns 
+        </h4>
+        <p>
+          On success, it returns the original key of the entry added. Returns NULL if failed.
+        </p>
+
+      </section>
+
+      <div class="api-spacer"></div>
+
+      <section>
+        <hr>
+        <pre><code>void* ht_get(ht* table, const char* key)</code></pre>
+        <hr>
+        <p>
+          Looks up an entry in <code style="font-size: 18px">table</code> mapped by the provided key string. 
+        </p>
+        <p>
+          This function returns the address of the element WITHIN the hash table. As such, any references made to entries
+          after the original hash table was freed will result in a memory access violation.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">table</code> - pointer to the caller's reference to the hash table object
+        </p>
+        <p>
+          <code style="font-size: 18px;">key</code> - null-terminated key string
+        </p>
+
+        <h4>
+          Returns 
+        </h4>
+        <p>
+          If the entry exists, the address of its value is returned. Otherwise, it returns NULL.
+        </p>
+      </section>
+
+      <div class="api-spacer"></div>
+
+      <section>
+        <hr>
+        <pre><code>const char* ht_delete(ht* table, const char* key)</code></pre>
+        <hr>
+        <p>
+          Frees an entry from a hash table by its key. 
+        </p>
+        <p>
+          If the key maps DOES map to an index within the entries of <code style="font-family: 18px">table</code>,
+          it then frees the entry's key string and entry value and sets them both to NULL.
+        </p>
+
+        <p>
+          Moreover, this function automatically expands the <code style="font-size:18px">table</code> object. It uses a private
+          and internal function that reassigns <code style="font-size:18px">table</code> to a new hash table object with 
+          double the original capacity. This is why it demands a double pointer for the hash table parameter.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">table</code> - pointer to the caller's reference to the hash table object
+        </p>
+        <p>
+          <code style="font-size: 18px;">key</code> - null-terminated key string
+        </p>
+        <p>
+          <code style="font-size: 18px;">value</code> - pointer to the value mapped by key
+        </p>
+        <p>
+          <code style="font-size: 18px;">value_len</code> - length of the value in bytes
+        </p>
+
+        <h4>
+          Returns 
+        </h4>
+        <p>
+          On success, it returns the original key of the entry added. Returns NULL if failed.
+        </p>
+      </section>
+
+      <div class="api-spacer"></div>
+
+
+      <section>
+        <hr>
+        <pre><code>void ht_destroy(ht* table)</code></pre>
+        <hr>
+        <p>
+          Frees a hash table and its entries to memory.
+        </p>
+        <p>
+          Ensure that the caller's reference to the hash table pointer is set to NULL after invoking this function to avoid
+          use-after-frees.
+        </p>
+        <p>
+          Make sure that all references to the hash table's entries are not utilized after invoking this function, since all
+          freed entries will be set to NULL.
+        </p>
+
+        <h4>
+          Parameters
+        </h4>
+        <p>
+          <code style="font-size: 18px;">table</code> - pointer to the hash table to be freed
+        </p>
+      </section>
 
       <div>
         <a href="../index.html">
