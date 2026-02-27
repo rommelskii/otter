@@ -3,19 +3,27 @@ a {
 }
 
 p {
+  font-size: 22px;
+}
+
+h4 {
   font-size: 24px;
 }
 
 h3 {
-  font-size: 26px;
+  font-size: 28px;
 }
 
 h2 {
-  font-size: 30px;
+  font-size: 32px;
 }
 
 h1 {
-  font-size: 32px;
+  font-size: 34px;
+}
+
+code {
+  font-size: 20px;
 }
 
 .code-block {
@@ -26,8 +34,8 @@ h1 {
   overflow-x: auto; /* Adds a scrollbar if the code is too wide */
 }
 
-code {
-  font-size: 20px;
+.api-spacer {
+  width = 100%;
+  height: 4vh;
 }
-
 
