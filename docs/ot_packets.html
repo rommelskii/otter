@@ -44,7 +44,145 @@
       <h3>
         Client States (ot_cli_state_t)
       </h3>
+      <pre class="code-block">
+<code>typedef enum 
+{
+  TREQ,         //<< Tether Request from client
+  TACK,         //<< Tether Acknowledge from server
+  TREN,         //<< Tether Renewal from client
+  TPRV,         //<< Tether Provide from server
+  TINV,         //<< Tether Invalid from server
+  CSEND,        //<< Credential Send (sends the hashed credentials)
+  CVAL,         //<< Credential Valid (acknowledges that the credentials exist)
+  CINV,         //<< Credential Invalid from server
+  UNKN          //<< Parse error type
+} ot_cli_state_t;</code>
+      </pre>
 
+      <p>
+      Client states (<code style="font-size:18px">ot_cli_state_t</code>) describe what the otclient intends to provide and 
+      expect from the otserver. These states are separated into two categories which are the tether states and the credential states. 
+      </p>
+
+      <h4>
+        Tether States
+      </h4>
+
+      <p>
+      Tether states, as you would expect, pertain to the otclient during the stages of tethering with the otserver. Each tether state
+      has a corresponding state reply from the otserver.
+      </p>
+
+      <hr>
+      <code style="font-weight: bold">TREQ</code>
+      <p>
+        Tether request (TREQ) is when an otclient initiates tethering with a server by providing its IP and MAC address as payloads in 
+        the packet.
+      </p>
+      <p>
+        Payloads: PL_STATE, PL_CLI_IP, PL_CLI_MAC
+      <p>
+
+      <code style="font-weight: bold">TACK</code>
+      <p>
+        Tether acknowledge (TACK) is when the otclient receives a packet (specified with the TACK state) from the otserver that contains
+        the otserver's and otclient's IP and MAC address, and the provided expiry and renewal time offsets for the otclient. As usual, 
+        these are designated as its own payloads. 
+      </p>
+
+      <p>
+        Payloads: PL_STATE, PL_SRV_IP, PL_SRV_MAC, PL_CLI_IP, PL_ETIME, PL_RTIME
+      </p>
+      <hr>
+      <code style="font-weight: bold">TREN</code>
+      <p>
+        Tether renew (TREN) is when an otclient requests to prolong itself in the ctable of the otserver. The otclient simply provides
+        the otserver IP and its own IP as payloads.
+      </p>
+      <p>
+        Note that in order to get a successful reply, the otclient must be in the renewal time window.
+      </p>
+
+      <p>
+        Payloads: PL_STATE, PL_SRV_IP, PL_CLI_IP
+      </p>
+
+      <code style="font-weight: bold">TPRV</code>
+      <p>
+        Tether provide (TPRV) is when an otserver updates the expiry and renewal time of an otclient. It replies back to the otclient
+        with its own IP, otclient IP, and the new expiry and renewal offsets
+      </p>
+      <p>
+        Payloads: PL_STATE, PL_SRV_IP, PL_CLI_IP, PL_ETIME, PL_RTIME
+      </p>
+      <hr>
+      <p>
+      <code style="font-weight: bold">TINV</code>
+      <p>
+        Tether invalid (TINV) is any state in which an otserver rejects an inbound TREQ or TREN. It could also be the case that
+        the inbound TREQ or TREN is malformed. The otserver replies back with the otserver and otclient IP.
+      </p>
+      <p>
+        Payloads: PL_STATE, PL_SRV_IP, PL_CLI_IP
+      </p>
+
+      <hr>
+
+      <h4>
+        Credential States
+      </h4>
+
+      <p>
+      As for credential states, these describe when an otclient sends hashed credentials to the otserver and expects a reply back whether
+      the user exists or not.
+      </p>
+
+      <hr>
+
+      <code style="font-weight: bold">CSEND</code>
+      <p>
+        Credential send (CSEND) is when an otclient sends hashed credentials to the otserver for authentication. The otclient sends
+        the otclient and otserver IPs and the hash digest.
+      </p>
+      <p>
+        Payloads: PL_STATE, PL_SRV_IP, PL_CLI_IP, PL_HASH
+      </p>
+
+      <code style="font-weight: bold">CVAL</code>
+      <p>
+        Credential valid (CVAL) is when the otserver finds a match of the inbound hash from the otclient. It replies back with the
+        otclient and otserver IPs and the otclient's hash.
+      </p>
+      <p>
+        Payloads: PL_STATE, PL_SRV_IP, PL_CLI_IP, PL_HASH
+      </p>
+
+      <hr>
+
+      <code style="font-weight: bold">CINV</code>
+      <p>
+        Credential invalid (CINV) is when the otserver does not find a match of an otclient's provided hash with the otserver's otable.
+        It could also mean that the otclient was not found in the otserver's ctable (possibly the lack of a TREQ/TACK handshake or the
+        otclient has expired). Lastly, it could also mean that the inbound CSEND packet was malformed.
+      </p>
+      <p>
+        In the event that the malformed CSEND does not have a PL_HASH payload, the otserver defaults to a hash payload of 255.
+      </p>
+      <p>
+        Payloads: PL_STATE, PL_SRV_IP, PL_CLI_IP, PL_HASH
+      </p>
+
+      <hr>
+
+      <h4>
+        Unkown State
+      </h4>
+
+      <code style="font-weight: bold">UNKN</code>
+      <p>
+        The unknown (UNKN) state is when the parsed value from either the otserver or otclient does not match any value in the
+        client states. This is mainly used for throwing parse errors or malformed serializations.
+      </p>
     </section>
 
     <hr>
