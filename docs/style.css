@@ -5,3 +5,29 @@ a {
 p {
   font-size: 24px;
 }
+
+h3 {
+  font-size: 26px;
+}
+
+h2 {
+  font-size: 30px;
+}
+
+h1 {
+  font-size: 32px;
+}
+
+.code-block {
+  background-color: #f4f4f4;
+  padding: 15px;
+  border-radius: 5px;
+  font-family: 'Courier New', Courier, monospace;
+  overflow-x: auto; /* Adds a scrollbar if the code is too wide */
+}
+
+code {
+  font-size: 20px;
+}
+
+

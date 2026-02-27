@@ -21,11 +21,26 @@
       <h2>
         Hash Table (ht.h)
       </h2>
+
       <h3>
-        Library 
+        Overview 
       </h3>
       <p>
+        Hash tables in this project utilize the <a href="https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function">FNV-1a</a> hashing
+        algorithm. The rest of the documentation for this library revolves around creating, destroying, and modifying hash table entries.
       </p>
+
+      <h3>
+        Hash Table Entry 
+      </h3>
+      <pre class="code-block">
+        <code>typedef struct {
+          char*   key;
+          void*   value;
+          size_t  vlen;
+        } ht_entry;</code>
+      </pre>
+
       <div>
         <a href="../index.html">
           Go back to main page
